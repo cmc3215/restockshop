@@ -1,3 +1,12 @@
+**2.4**
+* Release date: 09/25/2014
+* With patch 6.0.x the stack size of many items have been increased to 200 so I've added a button on the RestockShop auction tab to toggle hiding auctions that when purchased would cause you to exceed your "Full Stock Qty" by more than 20% by default but can be changed on options panel - This is meant to help get you closer to your "Full Stock Qty" with minimal overbuying especially when using the "Buy All" feature - As a convenience I've included the message "Hidden auctions available" when this feature is toggled on and is currently hiding auctions
+* Updated option panels with new text and tooltips
+* Added percentage option for the new "Hide Overstock Stacks" feature
+* Default "Item Value Source" for fresh installs is now determined by which price data addon is enabled, previously default was always "DBMarket" - This was changed to prevent new users from seeing missing data notices if, for example, they have TradeSkillMaster_WoWuction installed and enabled but not TradeSkillMaster_AuctionDB
+* Tooltip color will now match whatever TSM's "Item Tooltip Text" color is set to instead of just being hardcoded
+* Bug fix, "On Hand" percentage in an item's tooltip was not being displayed when Item Value data was missing
+
 **2.3**
 * Release date: 09/13/2014
 * Bug fix, closing AH with BuyAll enabled caused LUA error

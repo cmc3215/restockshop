@@ -1,4 +1,3 @@
--- v2.3
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- Initialize Variables
 --------------------------------------------------------------------------------------------------------------------------------------------
@@ -28,6 +27,7 @@ local RESTOCKSHOP_QUERY_TOTAL_PAGES = nil;
 --
 local RESTOCKSHOP_AUCTION_DATA_RAW = {};
 local RESTOCKSHOP_AUCTION_DATA_GROUPS = {};
+local RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN = {};
 local RESTOCKSHOP_AUCTION_DATA_SORT_KEY = nil;
 local RESTOCKSHOP_AUCTION_DATA_SORT_ORDER = nil;
 local RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = nil;
@@ -39,7 +39,7 @@ local L = RESTOCKSHOP_LOCALIZATION;
 RESTOCKSHOP_LOW_COLOR_CODE = "|cffff7f3f";
 RESTOCKSHOP_NORM_COLOR_CODE = "|cffffff00";
 RESTOCKSHOP_FULL_COLOR_CODE = "|cff3fbf3f";
-RESTOCKSHOP_LOW_FONT_COLOR = { ["r"]= 1.0, ["g"]=0.5, ["b"]=0.25 };
+RESTOCKSHOP_LOW_FONT_COLOR = { ["r"]=1.0, ["g"]=0.5, ["b"]=0.25 };
 RESTOCKSHOP_NORM_FONT_COLOR = { ["r"]=1.0, ["g"]=1.0, ["b"]=0.0 };
 RESTOCKSHOP_FULL_FONT_COLOR = { ["r"]=0.25, ["g"]=0.75, ["b"]=0.25 };
 --------------------------------------------------------------------------------------------------------------------------------------------
@@ -111,12 +111,14 @@ function RestockShop_DefaultSavedVariables()
 	return {
 		["version"] = RESTOCKSHOP_VERSION,
 		["wowClientBuild"] = RESTOCKSHOP_WOW_CLIENT_BUILD,
-		["itemValueSrc"] = "DBMarket",
+		["hideOverstockStacks"] = nil,
+		["itemValueSrc"] = ( addonLoaded["TradeSkillMaster_AuctionDB"] and "DBMarket" ) or ( addonLoaded["TradeSkillMaster_WoWuction"] and "wowuctionMarket" ) or ( addonLoaded["Auc-Advanced"] and "AucMarket" ) or ( addonLoaded["Auctionator"] and "AtrValue" ),
 		["lowStockPct"] = 30,
 		["qoh"] = {
 			["allCharacters"] = 1,
 			["guilds"] = 1,
 		},
+		["hideOverstockStacksPct"] = 20,
 		["itemTooltip"] = {
 			["shoppingListSettings"] = 1,
 			["itemId"] = 1,
@@ -174,6 +176,11 @@ function RestockShop_Upgrade()
 		);
 		--
 		RESTOCKSHOP_SAVEDVARIABLES["wowClientBuild"] = 0; -- Forces the item data update that was added this version
+	end
+	--
+	if version < 2.4 then
+		RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] = vars["hideOverstockStacks"];
+		RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacksPct"] = vars["hideOverstockStacksPct"];
 	end
 	--
 	print( "RestockShop: " .. string.format( L["Upgraded version %s to %s"], version, RESTOCKSHOP_VERSION ) );
@@ -256,8 +263,13 @@ end
 function RestockShop_OnPlayerLogin() -- PLAYER_LOGIN
 	RestockShopEventsFrame:UnregisterEvent( "PLAYER_LOGIN" );
 	RestockShop_InitOptionsPanels();
+	--
 	if not RESTOCKSHOP_SAVEDVARIABLES["flyoutPanelOpen"] then
 		RestockShopFrame_FlyoutPanelButton:Click();
+	end
+	--
+	if RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] then
+		RestockShopFrame_HideOverstockStacksButton:LockHighlight();
 	end
 end
 
@@ -313,13 +325,21 @@ function RestockShop_OnUIErrorMessage( ... ) -- UI_ERROR_MESSAGE
 					RestockShopFrame_ScrollFrame_Entry_OnClick( 1 );
 				else
 					RestockShopFrame_ScrollFrame_Update();
-					RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
+					if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+						RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+					else
+						RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
+					end
 					RestockShopFrame_BuyAllButton:Enable();
 				end
 			else
 				-- No auctions exist
 				RestockShopFrame_ScrollFrame_Update();
-				RestockShopFrame_DialogFrame_StatusFrame_Update( L["No additional auctions matched your settings"] );
+				if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+					RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["No additional auctions matched your settings"] );
+				else
+					RestockShopFrame_DialogFrame_StatusFrame_Update( L["No additional auctions matched your settings"] );
+				end
 				RestockShopFrame_BuyAllButton_Reset();
 			end
 		else
@@ -371,6 +391,7 @@ function RestockShopFrame_Reset( flyoutPanelEntryClick )
 	RESTOCKSHOP_QUERY_ITEM = {};
 	RESTOCKSHOP_QUERY_QUEUE = {};
 	RESTOCKSHOP_AUCTION_DATA_GROUPS = {};
+	RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN = {};
 	--
 	RestockShopFrame_HideSortButtonArrows();
 	RestockShopFrame_NameSortButton:Click();
@@ -425,7 +446,7 @@ function RestockShopFrame_ListSummary()
 			fullGray = fullGray + 1;
 		end
 	end
-	return string.format( "|cffffffff%d|r |cff7674d9(|r%s" .. L["Low"] .. "|r|cff7674d9)|r  |cffffffff%d|r |cff7674d9(|r%s" .. L["Norm"] .. "|r|cff7674d9)|r  |cffffffff%d|r |cff7674d9(|r%s" .. L["Full"] .. "|r|cff7674d9)|r  |cffffffff%d|r |cff7674d9(|r%s" .. L["Full"] .. "|r|cff7674d9)|r", low, RESTOCKSHOP_LOW_COLOR_CODE, norm, RESTOCKSHOP_NORM_COLOR_CODE, fullGreen, RESTOCKSHOP_FULL_COLOR_CODE, fullGray, GRAY_FONT_COLOR_CODE );
+	return string.format( "|cffffffff%d|r %s(" .. L["Low"] .. ")|r  |cffffffff%d|r %s(" .. L["Norm"] .. ")|r  |cffffffff%d|r %s(" .. L["Full"] .. ")|r  |cffffffff%d|r %s(" .. L["Full"] .. ")|r", low, RESTOCKSHOP_LOW_COLOR_CODE, norm, RESTOCKSHOP_NORM_COLOR_CODE, fullGreen, RESTOCKSHOP_FULL_COLOR_CODE, fullGray, GRAY_FONT_COLOR_CODE );
 end
 
 --
@@ -465,7 +486,7 @@ function RestockShopFrame_ScrollFrame_Update()
 			--
 			_G[EntryFrameName .. "_IconTexture"]:SetTexture( groups[offsetKey]["texture"] );
 			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnEnter", function( self ) GameTooltip:SetOwner( self, "ANCHOR_RIGHT" ); GameTooltip:SetHyperlink( groups[offsetKey]["itemLink"] ); end );
-			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnLeave", function( self ) GameTooltip:Hide(); end );
+			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnLeave", GameTooltip_Hide );
 			_G[EntryFrameName .. "_Name"]:SetText( groups[offsetKey]["name"] );
 			_G[EntryFrameName .. "_Name"]:SetTextColor( GetItemQualityColor( groups[offsetKey]["quality"] ) );
 			_G[EntryFrameName .. "_Stacks"]:SetText( string.format( L["%d stacks of %d"], groups[offsetKey]["numAuctions"], groups[offsetKey]["count"] ) );
@@ -542,7 +563,7 @@ function RestockShopFrame_FlyoutPanel_ScrollFrame_Update()
 		if offsetKey <= numItems then
 			_G[EntryFrameName .. "_IconTexture"]:SetTexture( items[offsetKey]["texture"] );
 			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnEnter", function() GameTooltip:SetOwner( _G[EntryFrameName .. "_IconTexture"]:GetParent(), "ANCHOR_RIGHT" ); GameTooltip:SetHyperlink( items[offsetKey]["link"] ); end );
-			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnLeave", function() GameTooltip:Hide(); end );
+			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnLeave", GameTooltip_Hide );
 			_G[EntryFrameName .. "_Name"]:SetText( items[offsetKey]["name"] );
 			_G[EntryFrameName .. "_Name"]:SetTextColor( GetItemQualityColor( items[offsetKey]["quality"] ) );
 			--
@@ -685,7 +706,7 @@ function RestockShopFrame_SortColumn_OnClick( button, itemInfoKey )
 	-- Return sorted data to frame
 	RESTOCKSHOP_AUCTION_DATA_SORT_KEY = itemInfoKey;
 	RESTOCKSHOP_AUCTION_DATA_SORT_ORDER = order;
-	RestockShop_SortAuctionDataGroups();
+	RestockShop_AuctionDataGroups_Sort();
 	if RESTOCKSHOP_BUYALL then
 		RestockShopFrame_ScrollFrame_Entry_OnClick( 1 );
 	else
@@ -957,6 +978,17 @@ function RestockShopInterfaceOptionsPanel_Load()
 			DropDownMenu_AddButton( frame, "70%", 70 );
 			DropDownMenu_AddButton( frame, "80%", 80 );
 			DropDownMenu_AddButton( frame, "90%", 90 );
+		elseif frameName == "RestockShopInterfaceOptionsPanelHideOverstockStacksPctDropDownMenu" then
+			DropDownMenu_AddButton( frame, "0%", 0 );
+			DropDownMenu_AddButton( frame, "10%", 10 );
+			DropDownMenu_AddButton( frame, "20%", 20 );
+			DropDownMenu_AddButton( frame, "30%", 30 );
+			DropDownMenu_AddButton( frame, "40%", 40 );
+			DropDownMenu_AddButton( frame, "50%", 50 );
+			DropDownMenu_AddButton( frame, "60%", 60 );
+			DropDownMenu_AddButton( frame, "70%", 70 );
+			DropDownMenu_AddButton( frame, "80%", 80 );
+			DropDownMenu_AddButton( frame, "90%", 90 );
 		elseif frameName == "RestockShopInterfaceOptionsPanelQOHAllCharactersDropDownMenu" then
 			DropDownMenu_AddButton( frame, L["All Characters"], 1 );
 			DropDownMenu_AddButton( frame, L["Current Character"], 2 );
@@ -974,6 +1006,10 @@ function RestockShopInterfaceOptionsPanel_Load()
 	UIDropDownMenu_Initialize( _G[panelName .. "LowStockPctDropDownMenu"], DropDownMenu_Initialize );
 	UIDropDownMenu_SetSelectedValue( _G[panelName .. "LowStockPctDropDownMenu"], RESTOCKSHOP_SAVEDVARIABLES["lowStockPct"] );
 	UIDropDownMenu_SetWidth( _G[panelName .. "LowStockPctDropDownMenu"], 49 );
+	-- Hide Overstock Stacks % Dropdown
+	UIDropDownMenu_Initialize( _G[panelName .. "HideOverstockStacksPctDropDownMenu"], DropDownMenu_Initialize );
+	UIDropDownMenu_SetSelectedValue( _G[panelName .. "HideOverstockStacksPctDropDownMenu"], RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacksPct"] );
+	UIDropDownMenu_SetWidth( _G[panelName .. "HideOverstockStacksPctDropDownMenu"], 49 );
 	-- Check Buttons
 	_G[panelName .. "QOHGuildsCheckButton"]:SetChecked( RESTOCKSHOP_SAVEDVARIABLES["qoh"]["guilds"] );
 	_G[panelName .. "ItemTooltipShoppingListSettingsCheckButton"]:SetChecked( RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["shoppingListSettings"] );
@@ -985,9 +1021,10 @@ end
 function RestockShopInterfaceOptionsPanel_Okay()
 	local panelName = "RestockShopInterfaceOptionsPanel";
 	RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] = UIDropDownMenu_GetSelectedValue( _G[panelName .. "ItemValueSrcDropDownMenu"] );
-	RESTOCKSHOP_SAVEDVARIABLES["lowStockPct"] = UIDropDownMenu_GetSelectedValue( _G[panelName .. "LowStockPctDropDownMenu"] );
 	RESTOCKSHOP_SAVEDVARIABLES["qoh"]["allCharacters"] = UIDropDownMenu_GetSelectedValue( _G[panelName .. "QOHAllCharactersDropDownMenu"] );
 	RESTOCKSHOP_SAVEDVARIABLES["qoh"]["guilds"] = _G[panelName .. "QOHGuildsCheckButton"]:GetChecked();
+	RESTOCKSHOP_SAVEDVARIABLES["lowStockPct"] = UIDropDownMenu_GetSelectedValue( _G[panelName .. "LowStockPctDropDownMenu"] );
+	RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacksPct"] = UIDropDownMenu_GetSelectedValue( _G[panelName .. "HideOverstockStacksPctDropDownMenu"] );
 	RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["shoppingListSettings"] = _G[panelName .. "ItemTooltipShoppingListSettingsCheckButton"]:GetChecked();
 	RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["itemId"] = _G[panelName .. "ItemTooltipItemIdCheckButton"]:GetChecked();
 	RESTOCKSHOP_SAVEDVARIABLES["showDeleteItemConfirmDialog"] = _G[panelName .. "showDeleteItemConfirmDialogCheckButton"]:GetChecked();
@@ -1046,7 +1083,7 @@ function RestockShopInterfaceOptionsPanelShoppingLists_ScrollFrame_Update()
 			_G[EntryFrameName .. "_ItemId"]:SetText( items[offsetKey]["itemId"] );
 			_G[EntryFrameName .. "_IconTexture"]:SetTexture( items[offsetKey]["texture"] );
 			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnEnter", function() GameTooltip:SetOwner( _G[EntryFrameName .. "_IconTexture"]:GetParent(), "ANCHOR_RIGHT" ); GameTooltip:SetHyperlink( items[offsetKey]["link"] ); end );
-			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnLeave", function() GameTooltip:Hide(); end );
+			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnLeave", GameTooltip_Hide );
 			_G[EntryFrameName .. "_Name"]:SetText( items[offsetKey]["name"] );
 			_G[EntryFrameName .. "_Name"]:SetTextColor( GetItemQualityColor( items[offsetKey]["quality"] ) );
 			_G[EntryFrameName .. "_FullStockQty"]:SetText( items[offsetKey]["fullStockQty"] );
@@ -1231,316 +1268,15 @@ function RestockShop_ImportItems( importString, data )
 	end
 end
 --------------------------------------------------------------------------------------------------------------------------------------------
--- Misc Functions
+-- Auction Data Groups Functions
 --------------------------------------------------------------------------------------------------------------------------------------------
-function RestockShop_AfterAuctionWon()
-	RESTOCKSHOP_AILU = "IGNORE"; -- Ignore by default, change below where needed.
-	-- NextAuction()
-	local function NextAuction( groupKey )
-		local auction = RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey]["auctions"][#RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey]["auctions"]];
-		if RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemId"] == auction["itemId"] and RESTOCKSHOP_AUCTION_SELECT_AUCTION["page"] == auction["page"] then
-			RESTOCKSHOP_QUERY_PAGE = auction["page"];
-			RESTOCKSHOP_AUCTION_SELECT_FOUND = false;
-			RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = groupKey;
-			RESTOCKSHOP_AUCTION_SELECT_AUCTION = auction; -- Cannot use index, ownerFullName, or buyoutPrice yet, these may change after scanning the page
-			if RESTOCKSHOP_BUYALL and groupKey == 1 then
-				RestockShopFrame_ScrollFrame:SetVerticalScroll( 0 ); -- Scroll to top when first group is selected during Buy All
-			end
-			RestockShopFrame_ScrollFrame_Update(); -- Highlight the selected group
-			RestockShop_StartScanning();
-			RESTOCKSHOP_AILU = "LISTEN";
-		else
-			RestockShopFrame_ScrollFrame_Entry_OnClick( groupKey ); -- Item wasn't the same or wasn't on the same page, this will send a new QueryAuctionItems()
-		end
-	end
-	-- NoGroupKey()
-	local function NoGroupKey()
-		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS ) then
-			-- More auction exist
-			if RESTOCKSHOP_BUYALL then
-				NextAuction( 1 );
-			else
-				RestockShopFrame_ScrollFrame_Auction_Deselect();
-				RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
-				RestockShopFrame_BuyAllButton:Enable();
-			end
-		else
-			-- No auctions exist
-			RestockShopFrame_ScrollFrame_Auction_Deselect();
-			RestockShopFrame_DialogFrame_StatusFrame_Update( L["No additional auctions matched your settings"] );
-			RestockShopFrame_BuyAllButton_Reset();
-		end
-	end
-	-- Full Stock Qty notice
-	if RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["onHandQty"] < RESTOCKSHOP_AUCTION_SELECT_AUCTION["fullStockQty"] and ( RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["onHandQty"] + RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"] ) >= RESTOCKSHOP_AUCTION_SELECT_AUCTION["fullStockQty"] then
-		print( "RestockShop: " .. string.format( L["You reached the %sFull Stock Qty|r of %s%d|r on %s"], NORMAL_FONT_COLOR_CODE, RESTOCKSHOP_FULL_COLOR_CODE, RESTOCKSHOP_AUCTION_SELECT_AUCTION["fullStockQty"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemLink"] ) );
-	end
-	--
-	RestockShopFrame_ShopButton:Enable();
-	--
-	RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["numAuctions"] = RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["numAuctions"] - 1;
-	--
-	if RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["numAuctions"] == 0 then
-		-- Group removed
-		table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS, RESTOCKSHOP_AUCTION_SELECT_GROUPKEY );
-		RestockShop_AuctionDataGroups_OnHandQtyChanged();
-		RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = nil;
-		RestockShopFrame_ScrollFrame_Update();
-		RestockShopFrame_FlyoutPanel_ScrollFrame_Update();
-		RestockShopFrame_FlyoutPanel_Footer:SetText( RestockShopFrame_ListSummary() );
-		NoGroupKey();
-	else
-		-- Single auction removed
-		table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["auctions"] );
-		RestockShop_AuctionDataGroups_OnHandQtyChanged();
-		RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = RestockShop_FindGroupKey( RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemId"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["name"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemPrice"] );
-		RestockShopFrame_ScrollFrame_Update();
-		RestockShopFrame_FlyoutPanel_ScrollFrame_Update();
-		RestockShopFrame_FlyoutPanel_Footer:SetText( RestockShopFrame_ListSummary() );
-		if not RESTOCKSHOP_AUCTION_SELECT_GROUPKEY then
-			NoGroupKey();
-		else
-			NextAuction( RESTOCKSHOP_AUCTION_SELECT_GROUPKEY );
-		end
-	end
-end
-
---
-function RestockShop_AddTooltipData( self, ... )
-	if not RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["shoppingListSettings"] and not RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["itemId"] then return end
-	-- Get Item Id
-	local itemName, itemLink = self:GetItem();
-	local itemId = itemLink and tonumber( string.match( itemLink, "item:(%d+):" ) ) or nil;
-	if not itemId then return end
-	-- Shopping List Settings
-	if RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["shoppingListSettings"] then
-		local itemKey = RestockShop_FindItemKey( itemId );
-		if itemKey then
-			-- Item found in current shopping list
-			if strtrim( _G[self:GetName() .. "TextLeft" .. self:NumLines()]:GetText() ) ~= "" then
-				self:AddLine( " " ); -- Blank line at top
-			end
-			-- Prepare data
-			local item = RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][RESTOCKSHOP_CURRENT_LISTKEY]["items"][itemKey];
-			local itemValue = TSMAPI:GetItemValue( item["link"], RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] );
-			local onHandQty, restockPct, maxPrice, restock = RestockShop_QOH( item["tsmItemString"] ), nil, nil, nil;
-			if type( itemValue ) ~= "number" or itemValue == 0 then
-				itemValue = nil;
-			else
-				restockPct = RestockShop_RestockPct( onHandQty, item["fullStockQty"] );
-				maxPrice, restock = RestockShop_MaxPrice( itemValue, restockPct, item["maxPricePct"], "returnRestock" );
-				-- Format settings info
-				itemValue = TSMAPI:FormatTextMoney( itemValue, "|cffffffff", true );
-				maxPrice = ( maxPrice > 0 ) and ( TSMAPI:FormatTextMoney( maxPrice, "|cffffffff", true ) .. " " ) or ""; -- If full stock and no full price then leave it blank
-				local restockColor = ( restockPct >= 100 and item["maxPricePct"]["full"] == 0 ) and GRAY_FONT_COLOR_CODE or _G["RESTOCKSHOP_" .. string.upper( restock ) .. "_COLOR_CODE"];
-				restockPct = restockColor .. math.floor( restockPct ) .. "%|r";
-				restock = restockColor .. L[restock] .. "|r";
-			end
-			-- Add lines to tooltip
-			self:AddLine( "|cffffff00RestockShop:" );
-			self:AddLine( "  |cff7674d9" .. L["List"] .. ":|r |cffffffff" .. RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][RESTOCKSHOP_CURRENT_LISTKEY]["name"] );
-			self:AddLine( "  |cff7674d9" .. L["On Hand"] .. ":|r |cffffffff" .. onHandQty .. "|r" .. ( restockPct and ( " |cff7674d9(|r" .. restockPct .. "|cff7674d9)|r" ) or "" ) );
-			self:AddLine( "  |cff7674d9" .. L["Full Stock Qty"] .. ":|r |cffffffff" .. item["fullStockQty"] );
-			self:AddLine( "  |cff7674d9" .. L["Low"] .. ":|r |cffffffff" .. item["maxPricePct"]["low"] .. "%" );
-			self:AddLine( "  |cff7674d9" .. L["Norm"] .. ":|r |cffffffff" .. item["maxPricePct"]["normal"] .. "%" );
-			self:AddLine( "  |cff7674d9" .. L["Full"] .. ":|r |cffffffff" .. ( ( item["maxPricePct"]["full"] > 0 ) and ( item["maxPricePct"]["full"] .. "%" ) or "-" ) );
-			self:AddLine( "  |cff7674d9" .. L["Item Value"] .. ":|r |cffffffff" .. ( itemValue and ( itemValue .. " |cff7674d9(" .. RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] .. ")|r" ) or ( "|cffff2020" .. string.format( L["Requires %s Data"], RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] ) .. "|r" ) ) );
-			self:AddLine( "  |cff7674d9" .. L["Max Price"] .. ":|r " .. ( maxPrice and ( maxPrice .. "|cff7674d9(|r" .. restock .. "|cff7674d9)|r"  ) or "|cffff2020" .. L["Requires Item Value"] .. "|r" ) );
-			self:AddLine( " " ); -- Blank line at bottom
-		end
-	end
-	-- Item Id
-	if RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["itemId"] then
-		self:AddLine( L["Item ID"] .. " " .. itemId  );
-	end
-	-- Makes added lines show immediately
-	self:Show();
-end
-
---
-function RestockShop_WoWClientBuildChanged()
-	-- Forward Declarations
-	local listKey, queueList;
-	-- Function: updateItem()
-	local function updateItem( listKey, itemKey, name, link, quality, maxStack, texture )
-		RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["name"] = name or RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["name"];
-		RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["link"] = link or RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["link"];
-		RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["quality"] = quality or 0;
-		RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["maxStack"] = maxStack or RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["maxStack"];
-		RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["texture"] = texture or "Interface\\ICONS\\INV_Misc_QuestionMark";
-	end
-	-- Function: updateList()
-	local function updateList()
-		for itemKey, item in ipairs( RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"] ) do
-			local name,link,quality,_,_,_,_,maxStack,_,texture,_ = GetItemInfo( item["itemId"] );
-			updateItem( listKey, itemKey, name, link, quality, maxStack, texture );
-		end
-		--
-		table.sort ( RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"],
-			function ( item1, item2 )
-				return item1["name"] < item2["name"]; -- Sort by name A-Z
-			end
-		);
-		--
-		listKey = listKey + 1;
-		RestockShop_TimeDelayFunction( 1, queueList );
-	end
-	-- Function: queryList()
-	local function queryList()
-		for itemKey, item in ipairs( RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"] ) do
-			local name,link,quality,_,_,_,_,maxStack,_,texture,_ = GetItemInfo( item["itemId"] );
-		end
-		--
-		local _,_,_,latencyWorld = GetNetStats();
-		local delay = math.ceil( #RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"] * ( ( latencyWorld > 0 and latencyWorld or 300 ) * 0.10 * 0.001 ) );
-		delay = delay > 0 and delay or 1;
-		RestockShop_TimeDelayFunction( delay, updateList );
-	end
-	-- Forward Declared Function: queueList()
-	queueList = function()
-		if listKey <= #RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"] then
-			if RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["name"] then
-				queryList();
-			else
-				listKey = listKey + 1;
-				queueList();
-			end
-		else
-			-- Update complete, save new build
-			RESTOCKSHOP_SAVEDVARIABLES["wowClientBuild"] = RESTOCKSHOP_WOW_CLIENT_BUILD;
-		end
-	end
-	--
-	listKey = 1;
-	RestockShop_TimeDelayFunction( 30, queueList ); -- Delay allows time for WoW client to establish latency
-end
-
---
-function RestockShop_SortAuctionDataGroups()
-	if not next( RESTOCKSHOP_AUCTION_DATA_GROUPS ) then return end
-	table.sort ( RESTOCKSHOP_AUCTION_DATA_GROUPS,
-		function ( item1, item2 )
-			if RESTOCKSHOP_AUCTION_DATA_SORT_ORDER == "ASC" then
-				if RESTOCKSHOP_AUCTION_DATA_SORT_KEY ~= "pctMaxPrice" and item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] == item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] then
-					return item1["pctMaxPrice"] < item2["pctMaxPrice"];
-				else
-					return item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] < item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY];
-				end
-			elseif RESTOCKSHOP_AUCTION_DATA_SORT_ORDER == "DESC" then
-				if RESTOCKSHOP_AUCTION_DATA_SORT_KEY ~= "pctMaxPrice" and item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] == item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] then
-					return item1["pctMaxPrice"] < item2["pctMaxPrice"];
-				else
-					return item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] > item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY];
-				end
-			end
-		end
-	);
-	-- Have to find the groupKey again if you reorder them
-	if RESTOCKSHOP_AUCTION_SELECT_GROUPKEY then
-		RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = RestockShop_FindGroupKey( RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemId"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["name"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemPrice"] );
-	end
-end
-
---
-function RestockShop_FindGroupKey( itemId, name, count, itemPrice )
-	for k, v in ipairs( RESTOCKSHOP_AUCTION_DATA_GROUPS ) do
-		if v["itemId"] == itemId and v["name"] == name and v["count"] == count and v["itemPrice"] == itemPrice then
-			return k;
-		end
-	end
-	return nil;
-end
-
---
-function RestockShop_FindItemKey( itemId, shoppingList )
-	shoppingList = shoppingList or RESTOCKSHOP_CURRENT_LISTKEY;
-	for k, v in ipairs( RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][shoppingList]["items"] ) do
-		if v["itemId"] == itemId then
-			return k;
-		end
-	end
-	return nil;
-end
-
---
-function RestockShop_SetCanBid( enable )
-	if enable then
-		RestockShopFrame_DialogFrame_BuyoutFrame_AcceptButton:Enable();
-		RestockShopFrame_DialogFrame_BuyoutFrame_CancelButton:Enable();
-	else
-		RestockShopFrame_DialogFrame_BuyoutFrame_AcceptButton:Disable();
-		RestockShopFrame_DialogFrame_BuyoutFrame_CancelButton:Disable();
-	end
-	RESTOCKSHOP_CAN_BID = enable;
-end
-
---
-function RestockShop_TSMItemString( itemLink )
-	local itemString = string.match( itemLink, "item[%-?%d:]+" );
-	local s1,s2,s3,s4,s5,s6,s7,s8 = strsplit( ":", itemString );
-	return s1 .. ":" .. s2 .. ":" .. s3 .. ":" .. s4 .. ":" .. s5 .. ":" .. s6 .. ":" .. s7 .. ":" .. s8;
-end
-
---
-function RestockShop_QOH( tsmItemString )
-	local qoh = 0;
-	local options = RESTOCKSHOP_SAVEDVARIABLES["qoh"];
-	local currentPlayerTotal, otherPlayersTotal = TSMAPI:ModuleAPI( "ItemTracker", "playertotal", tsmItemString ); -- Bags, Bank, and Mail
-	if options["allCharacters"] == 1 then
-		-- All Characters
-		qoh = qoh + currentPlayerTotal + otherPlayersTotal; -- Bags, Bank, and Mail
-		qoh = qoh + TSMAPI:ModuleAPI( "ItemTracker", "auctionstotal", tsmItemString ); -- Auction Listings
-		if options["guilds"] then
-			qoh = qoh + TSMAPI:ModuleAPI( "ItemTracker", "guildtotal", tsmItemString ); -- Guild Bank
-		end
-	elseif options["allCharacters"] == 2 then
-		-- Current Character
-		qoh = qoh + currentPlayerTotal;
-		local playerAuctions = TSMAPI:ModuleAPI( "ItemTracker", "playerauctions", GetUnitName( "player" ) ); -- Auction Listings
-		qoh = qoh + ( playerAuctions[tsmItemString] or 0 );
-		if options["guilds"] then
-			local guild,_,_ = GetGuildInfo( "player" );
-			if guild then
-				local guildBank = TSMAPI:ModuleAPI( "ItemTracker", "guildbank", guild );
-				qoh = qoh + ( guildBank[tsmItemString] or 0 );
-			end
-		end
-	end
-	return qoh;
-end
-
---
-function RestockShop_RestockPct( onHandQty, fullStockQty )
-	return ( onHandQty * 100 ) / fullStockQty;
-end
-
---
-function RestockShop_MaxPrice( itemValue, restockPct, maxPricePct, returnRestock )
-	local maxPrice = nil;
-	if restockPct < RESTOCKSHOP_SAVEDVARIABLES["lowStockPct"] then
-		maxPrice = math.ceil( ( itemValue * maxPricePct["low"] ) / 100 );
-		restock = "Low"; -- Do not translate here
-	elseif restockPct < 100 then
-		maxPrice = math.ceil( ( itemValue * maxPricePct["normal"] ) / 100 );
-		restock = "Norm"; -- Do not translate here
-	else
-		maxPrice = math.ceil( ( itemValue * maxPricePct["full"] ) / 100 );
-		restock = "Full"; -- Do not translate here
-	end
-	--
-	if returnRestock then
-		return unpack( { maxPrice, restock } );
-	else
-		return maxPrice;
-	end
-end
-
---
 function RestockShop_AuctionDataGroups_OnHandQtyChanged()
 	-- Remove: If restockPct is 100+ and no maxPricePct["full"] ---OR--- If pctMaxPrice is over 100
 	-- Update: onHandQty, restockPct, pctMaxPrice
 	-- This function should be run when an auction is won, uses the RESTOCKSHOP_AUCTION_SELECT_AUCTION
 	-- ONLY Updates or Removes Groups for the ItemId that was won
+	RestockShop_AuctionDataGroups_ShowOverstockStacks()
+	--
 	local groupKey = 1;
 	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS do
 		local group = RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey];
@@ -1563,11 +1299,61 @@ function RestockShop_AuctionDataGroups_OnHandQtyChanged()
 			groupKey = groupKey + 1; -- ItemId wasn't a match, increment to try the next group
 		end
 	end
+	--
+	if RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] then
+		RestockShop_AuctionDataGroups_HideOverstockStacks();
+	end
+end
+
+--
+function RestockShop_AuctionDataGroups_HideOverstockStacks()
+	-- Remove: If ( ( onHandQty + count ) * 100 ) / fullStockQty > 100 + {overstockStacksPct}
+	-- Run this function when:
+		-- a) Auction is won (RestockShop_AuctionDataGroups_OnHandQtyChanged)
+		-- b) Inside RestockShop_ScanAuctionQueue() just before RestockShop_ScanComplete()
+		-- c) User toggles on Hide button
+	local groupKey = 1;
+	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS do
+		local group = RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey];
+		local afterPurchaseRestockPct = RestockShop_RestockPct( group["onHandQty"] + group["count"], group["fullStockQty"] );
+		--
+		if afterPurchaseRestockPct > ( 100 + RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacksPct"] ) then
+			-- Remove and insert
+			table.insert( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN, table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS, groupKey ) );
+		else
+			-- Increment to try the next group
+			groupKey = groupKey + 1;
+		end
+	end
+end
+
+--
+function RestockShop_AuctionDataGroups_ShowOverstockStacks()
+	-- Run this function when:
+		-- a) Auction is won (RestockShop_AuctionDataGroups_OnHandQtyChanged)
+		-- b) User toggles off Hide button
+	local groupKey = 1;
+	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN do
+		-- Remove and insert
+		table.insert( RESTOCKSHOP_AUCTION_DATA_GROUPS, table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN, groupKey ) );
+	end
+end
+
+--
+function RestockShop_AuctionDataGroups_FindGroupKey( itemId, name, count, itemPrice )
+	for k, v in ipairs( RESTOCKSHOP_AUCTION_DATA_GROUPS ) do
+		if v["itemId"] == itemId and v["name"] == name and v["count"] == count and v["itemPrice"] == itemPrice then
+			return k;
+		end
+	end
+	return nil;
 end
 
 --
 function RestockShop_AuctionDataGroups_RemoveItemId( itemId )
 	-- This function is run just before raw data from a RESCAN is used to form new data groups, out with the old before in with the new
+	--
+	-- Visible
 	local groupKey = 1;
 	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS do
 		if RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey]["itemId"] == itemId then
@@ -1577,6 +1363,43 @@ function RestockShop_AuctionDataGroups_RemoveItemId( itemId )
 			-- Not a match, increment to try next group
 			groupKey = groupKey + 1;
 		end
+	end
+	-- Hidden
+	local groupKey = 1;
+	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN do
+		if RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN[groupKey]["itemId"] == itemId then
+			-- Match, remove group
+			table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN, groupKey );
+		else
+			-- Not a match, increment to try next group
+			groupKey = groupKey + 1;
+		end
+	end
+end
+
+--
+function RestockShop_AuctionDataGroups_Sort()
+	if not next( RESTOCKSHOP_AUCTION_DATA_GROUPS ) then return end
+	table.sort ( RESTOCKSHOP_AUCTION_DATA_GROUPS,
+		function ( item1, item2 )
+			if RESTOCKSHOP_AUCTION_DATA_SORT_ORDER == "ASC" then
+				if RESTOCKSHOP_AUCTION_DATA_SORT_KEY ~= "pctMaxPrice" and item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] == item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] then
+					return item1["pctMaxPrice"] < item2["pctMaxPrice"];
+				else
+					return item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] < item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY];
+				end
+			elseif RESTOCKSHOP_AUCTION_DATA_SORT_ORDER == "DESC" then
+				if RESTOCKSHOP_AUCTION_DATA_SORT_KEY ~= "pctMaxPrice" and item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] == item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] then
+					return item1["pctMaxPrice"] < item2["pctMaxPrice"];
+				else
+					return item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] > item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY];
+				end
+			end
+		end
+	);
+	-- Have to find the groupKey again if you reorder them
+	if RESTOCKSHOP_AUCTION_SELECT_GROUPKEY then
+		RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = RestockShop_AuctionDataGroups_FindGroupKey( RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemId"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["name"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemPrice"] );
 	end
 end
 --------------------------------------------------------------------------------------------------------------------------------------------
@@ -1624,7 +1447,7 @@ function RestockShop_ScanAuctionQueue()
 			for itemId, pages in pairs( RESTOCKSHOP_AUCTION_DATA_RAW ) do -- [ItemId] => [Page] => [Index] => ItemInfo
 				for page, indexes in pairs( pages ) do
 					for index, itemInfo in pairs( indexes ) do
-						local groupKey = RestockShop_FindGroupKey( itemInfo["itemId"], itemInfo["name"], itemInfo["count"], itemInfo["itemPrice"] );
+						local groupKey = RestockShop_AuctionDataGroups_FindGroupKey( itemInfo["itemId"], itemInfo["name"], itemInfo["count"], itemInfo["itemPrice"] );
 						if groupKey then
 							table.insert( RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey]["auctions"], itemInfo );
 							RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey]["numAuctions"] = RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey]["numAuctions"] + 1;
@@ -1651,7 +1474,11 @@ function RestockShop_ScanAuctionQueue()
 				end
 			end
 			--
-			RestockShop_SortAuctionDataGroups();
+			if RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] then
+				RestockShop_AuctionDataGroups_HideOverstockStacks();
+			end
+			--
+			RestockShop_AuctionDataGroups_Sort();
 			RestockShopFrame_ScrollFrame_Update();
 		end
 		RestockShop_ScanComplete();
@@ -1667,9 +1494,9 @@ function RestockShop_ScanAuctionQueue()
 		RestockShopFrame_DialogFrame_StatusFrame_Update( L["Scanning"] .. " " .. RESTOCKSHOP_QUERY_ITEM["name"] .. "..." );
 	end
 	--
-	local itemValue = TSMAPI:GetItemValue( RESTOCKSHOP_QUERY_ITEM["link"], RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] );
+	local itemValue = TSMAPI:GetItemValue( RESTOCKSHOP_QUERY_ITEM["link"], RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] ) or 0;
 	--
-	if type( itemValue ) ~= "number" or itemValue <= 0 then
+	if itemValue == 0 then
 		-- Skipping: No Item Value
 		print( "RestockShop: " .. string.format( L["Skipping %s: %sRequires %s data|r"], RESTOCKSHOP_QUERY_ITEM["link"], RED_FONT_COLOR_CODE, RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] ) );
 		RESTOCKSHOP_ITEMS[RESTOCKSHOP_QUERY_ITEM["itemId"]]["scanTexture"] = "NotReady";
@@ -1830,10 +1657,18 @@ function RestockShop_ScanComplete()
 		RestockShopFrame_FlyoutPanel_ScrollFrame_Update(); -- Update scanTexture and Highlight
 		--
 		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS ) then
-			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
+			if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+				RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+			else
+				RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
+			end
 			RestockShopFrame_BuyAllButton:Enable();
 		else
-			RestockShopFrame_DialogFrame_StatusFrame_Update( L["No auctions were found that matched your settings"] );
+			if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+				RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["No additional auctions matched your settings"] );
+			else
+				RestockShopFrame_DialogFrame_StatusFrame_Update( L["No auctions were found that matched your settings"] );
+			end
 		end
 	elseif RESTOCKSHOP_SCAN_TYPE == "SELECT" then
 		-- Select, this scan type only completes if it found what it was looking for, always. Otherwise it would generate a rescan.
@@ -1842,7 +1677,7 @@ function RestockShop_ScanComplete()
 		local BuyoutFrameName = "RestockShopFrame_DialogFrame_BuyoutFrame";
 		_G[BuyoutFrameName .. "_TextureFrame_Texture"]:SetTexture( auction["texture"] );
 		_G[BuyoutFrameName .. "_TextureFrame"]:SetScript( "OnEnter", function( self ) GameTooltip:SetOwner( self, "ANCHOR_RIGHT" ); GameTooltip:SetHyperlink( auction["itemLink"] ); end );
-		_G[BuyoutFrameName .. "_TextureFrame"]:SetScript( "OnLeave", function( self ) GameTooltip:Hide(); end );
+		_G[BuyoutFrameName .. "_TextureFrame"]:SetScript( "OnLeave", GameTooltip_Hide );
 		_G[BuyoutFrameName .. "_DescriptionFrame_Text"]:SetText( "|c" .. hexColor .. auction["name"] .. "|r x " .. auction["count"] );
 		MoneyFrame_Update( BuyoutFrameName .. "_SmallMoneyFrame", auction["buyoutPrice"] );
 		RestockShop_SetCanBid( true );
@@ -1850,20 +1685,28 @@ function RestockShop_ScanComplete()
 		RestockShopFrame_BuyAllButton:Enable();
 	elseif RESTOCKSHOP_SCAN_TYPE == "RESCAN" then
 		-- Rescanned the specific item from the selected group. If the group exists after a rescan, then reselect it.
-		RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = RestockShop_FindGroupKey( RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemId"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["name"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemPrice"] );
+		RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = RestockShop_AuctionDataGroups_FindGroupKey( RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemId"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["name"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemPrice"] );
 		if not RESTOCKSHOP_AUCTION_SELECT_GROUPKEY then
 			print( "RestockShop: " .. string.format( L["%s%sx%d|r for %s per item not found after rescan"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemLink"], YELLOW_FONT_COLOR_CODE, RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"], TSMAPI:FormatTextMoney( RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemPrice"], "|cffffffff", true ) ) );
 			if next( RESTOCKSHOP_AUCTION_DATA_GROUPS ) then
 				if RESTOCKSHOP_BUYALL then
 					RestockShopFrame_ScrollFrame_Entry_OnClick( 1 );
 				else
-					RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
 					RestockShopFrame_ScrollFrame_Auction_Deselect();
+					if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+						RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+					else
+						RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
+					end
 					RestockShopFrame_BuyAllButton:Enable();
 				end
 			else
-				RestockShopFrame_DialogFrame_StatusFrame_Update( L["No additional auctions matched your settings"] );
 				RestockShopFrame_ScrollFrame_Auction_Deselect();
+				if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+					RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["No additional auctions matched your settings"] );
+				else
+					RestockShopFrame_DialogFrame_StatusFrame_Update( L["No additional auctions matched your settings"] );
+				end
 				RestockShopFrame_BuyAllButton_Reset();
 			end
 		else
@@ -1882,6 +1725,282 @@ function RestockShop_RescanItem()
 	table.insert( RESTOCKSHOP_QUERY_QUEUE, RESTOCKSHOP_ITEMS[RESTOCKSHOP_QUERY_ITEM["itemId"]] );
 	RESTOCKSHOP_SCAN_TYPE = "RESCAN";
 	RestockShop_ScanAuctionQueue();
+end
+--------------------------------------------------------------------------------------------------------------------------------------------
+-- Misc Functions
+--------------------------------------------------------------------------------------------------------------------------------------------
+function RestockShop_AfterAuctionWon()
+	RESTOCKSHOP_AILU = "IGNORE"; -- Ignore by default, change below where needed.
+	-- NextAuction()
+	local function NextAuction( groupKey )
+		local auction = RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey]["auctions"][#RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey]["auctions"]];
+		if RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemId"] == auction["itemId"] and RESTOCKSHOP_AUCTION_SELECT_AUCTION["page"] == auction["page"] then
+			RESTOCKSHOP_QUERY_PAGE = auction["page"];
+			RESTOCKSHOP_AUCTION_SELECT_FOUND = false;
+			RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = groupKey;
+			RESTOCKSHOP_AUCTION_SELECT_AUCTION = auction; -- Cannot use index, ownerFullName, or buyoutPrice yet, these may change after scanning the page
+			if RESTOCKSHOP_BUYALL and groupKey == 1 then
+				RestockShopFrame_ScrollFrame:SetVerticalScroll( 0 ); -- Scroll to top when first group is selected during Buy All
+			end
+			RestockShopFrame_ScrollFrame_Update(); -- Highlight the selected group
+			RestockShop_StartScanning();
+			RESTOCKSHOP_AILU = "LISTEN";
+		else
+			RestockShopFrame_ScrollFrame_Entry_OnClick( groupKey ); -- Item wasn't the same or wasn't on the same page, this will send a new QueryAuctionItems()
+		end
+	end
+	-- NoGroupKey()
+	local function NoGroupKey()
+		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS ) then
+			-- More auction exist
+			if RESTOCKSHOP_BUYALL then
+				NextAuction( 1 );
+			else
+				RestockShopFrame_ScrollFrame_Auction_Deselect();
+				if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+					RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+				else
+					RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
+				end
+				RestockShopFrame_BuyAllButton:Enable();
+			end
+		else
+			-- No auctions exist
+			RestockShopFrame_ScrollFrame_Auction_Deselect();
+			if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+				RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["No additional auctions matched your settings"] );
+			else
+				RestockShopFrame_DialogFrame_StatusFrame_Update( L["No additional auctions matched your settings"] );
+			end
+			RestockShopFrame_BuyAllButton_Reset();
+		end
+	end
+	-- Full Stock Qty notice
+	if RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["onHandQty"] < RESTOCKSHOP_AUCTION_SELECT_AUCTION["fullStockQty"] and ( RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["onHandQty"] + RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"] ) >= RESTOCKSHOP_AUCTION_SELECT_AUCTION["fullStockQty"] then
+		print( "RestockShop: " .. string.format( L["You reached the %sFull Stock Qty|r of %s%d|r on %s"], NORMAL_FONT_COLOR_CODE, RESTOCKSHOP_FULL_COLOR_CODE, RESTOCKSHOP_AUCTION_SELECT_AUCTION["fullStockQty"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemLink"] ) );
+	end
+	--
+	RestockShopFrame_ShopButton:Enable();
+	--
+	RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["numAuctions"] = RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["numAuctions"] - 1;
+	--
+	if RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["numAuctions"] == 0 then
+		-- Group removed
+		table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS, RESTOCKSHOP_AUCTION_SELECT_GROUPKEY );
+		RestockShop_AuctionDataGroups_OnHandQtyChanged();
+		RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = nil;
+		RestockShopFrame_ScrollFrame_Update();
+		RestockShopFrame_FlyoutPanel_ScrollFrame_Update();
+		RestockShopFrame_FlyoutPanel_Footer:SetText( RestockShopFrame_ListSummary() );
+		NoGroupKey();
+	else
+		-- Single auction removed
+		table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS[RESTOCKSHOP_AUCTION_SELECT_GROUPKEY]["auctions"] );
+		RestockShop_AuctionDataGroups_OnHandQtyChanged();
+		RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = RestockShop_AuctionDataGroups_FindGroupKey( RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemId"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["name"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemPrice"] );
+		RestockShopFrame_ScrollFrame_Update();
+		RestockShopFrame_FlyoutPanel_ScrollFrame_Update();
+		RestockShopFrame_FlyoutPanel_Footer:SetText( RestockShopFrame_ListSummary() );
+		if not RESTOCKSHOP_AUCTION_SELECT_GROUPKEY then
+			NoGroupKey();
+		else
+			NextAuction( RESTOCKSHOP_AUCTION_SELECT_GROUPKEY );
+		end
+	end
+end
+
+--
+function RestockShop_AddTooltipData( self, ... )
+	if not RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["shoppingListSettings"] and not RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["itemId"] then return end
+	-- Get Item Id
+	local itemName, itemLink = self:GetItem();
+	local itemId = itemLink and tonumber( string.match( itemLink, "item:(%d+):" ) ) or nil;
+	if not itemId then return end
+	-- Shopping List Settings
+	if RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["shoppingListSettings"] then
+		local itemKey = RestockShop_FindItemKey( itemId );
+		if itemKey then
+			-- Item found in current shopping list
+			if strtrim( _G[self:GetName() .. "TextLeft" .. self:NumLines()]:GetText() ) ~= "" then
+				self:AddLine( " " ); -- Blank line at top
+			end
+			-- Prepare and format data
+			local item = RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][RESTOCKSHOP_CURRENT_LISTKEY]["items"][itemKey];
+			local itemValue = TSMAPI:GetItemValue( item["link"], RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] ) or 0;
+			local onHandQty = RestockShop_QOH( item["tsmItemString"] );
+			local restockPct = RestockShop_RestockPct( onHandQty, item["fullStockQty"] );
+			local maxPrice, restock = RestockShop_MaxPrice( itemValue, restockPct, item["maxPricePct"], "returnRestock" );
+			maxPrice = ( maxPrice > 0 ) and ( TSMAPI:FormatTextMoney( maxPrice, "|cffffffff", true ) .. " " ) or ""; -- If full stock and no full price then leave it blank
+			local restockColor = ( restockPct >= 100 and item["maxPricePct"]["full"] == 0 ) and GRAY_FONT_COLOR_CODE or _G["RESTOCKSHOP_" .. string.upper( restock ) .. "_COLOR_CODE"];
+			restockPct = restockColor .. math.floor( restockPct ) .. "%|r";
+			restock = restockColor .. L[restock] .. "|r";
+			if itemValue ~= 0 then
+				itemValue = TSMAPI:FormatTextMoney( itemValue, "|cffffffff", true );
+			else
+				itemValue, maxPrice = nil, nil;
+			end
+			local TOOLTIP_COLOR_CODE = TSMAPI.Design:GetInlineColor( "tooltip" ) or "|cff7674d9";
+			-- Add lines to tooltip
+			self:AddLine( "|cffffff00RestockShop:" );
+			self:AddLine( "  " .. TOOLTIP_COLOR_CODE .. L["List"] .. ":|r |cffffffff" .. RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][RESTOCKSHOP_CURRENT_LISTKEY]["name"] );
+			self:AddLine( "  " .. TOOLTIP_COLOR_CODE .. L["On Hand"] .. ":|r |cffffffff" .. onHandQty .. "|r " .. TOOLTIP_COLOR_CODE .. "(|r" .. restockPct .. TOOLTIP_COLOR_CODE .. ")|r" );
+			self:AddLine( "  " .. TOOLTIP_COLOR_CODE .. L["Full Stock Qty"] .. ":|r |cffffffff" .. item["fullStockQty"] );
+			self:AddLine( "  " .. TOOLTIP_COLOR_CODE .. L["Low"] .. ":|r |cffffffff" .. item["maxPricePct"]["low"] .. "%" );
+			self:AddLine( "  " .. TOOLTIP_COLOR_CODE .. L["Norm"] .. ":|r |cffffffff" .. item["maxPricePct"]["normal"] .. "%" );
+			self:AddLine( "  " .. TOOLTIP_COLOR_CODE .. L["Full"] .. ":|r |cffffffff" .. ( ( item["maxPricePct"]["full"] > 0 ) and ( item["maxPricePct"]["full"] .. "%" ) or "-" ) );
+			self:AddLine( "  " .. TOOLTIP_COLOR_CODE .. L["Item Value"] .. ":|r |cffffffff" .. ( itemValue and ( itemValue .. " " .. TOOLTIP_COLOR_CODE .. "(" .. RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] .. ")|r" ) or ( "|cffff2020" .. string.format( L["Requires %s Data"], RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] ) .. "|r" ) ) );
+			self:AddLine( "  " .. TOOLTIP_COLOR_CODE .. L["Max Price"] .. ":|r " .. ( maxPrice and ( maxPrice .. TOOLTIP_COLOR_CODE .. "(|r" .. restock .. TOOLTIP_COLOR_CODE .. ")|r"  ) or "|cffff2020" .. L["Requires Item Value"] .. "|r" ) );
+			self:AddLine( " " ); -- Blank line at bottom
+		end
+	end
+	-- Item Id
+	if RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["itemId"] then
+		self:AddLine( L["Item ID"] .. " " .. itemId  );
+	end
+	-- Makes added lines show immediately
+	self:Show();
+end
+
+--
+function RestockShop_WoWClientBuildChanged()
+	-- Forward Declarations
+	local listKey, queueList;
+	-- Function: updateItem()
+	local function updateItem( listKey, itemKey, name, link, quality, maxStack, texture )
+		RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["name"] = name or RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["name"];
+		RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["link"] = link or RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["link"];
+		RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["quality"] = quality or 0;
+		RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["maxStack"] = maxStack or RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["maxStack"];
+		RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"][itemKey]["texture"] = texture or "Interface\\ICONS\\INV_Misc_QuestionMark";
+	end
+	-- Function: updateList()
+	local function updateList()
+		for itemKey, item in ipairs( RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"] ) do
+			local name,link,quality,_,_,_,_,maxStack,_,texture,_ = GetItemInfo( item["itemId"] );
+			updateItem( listKey, itemKey, name, link, quality, maxStack, texture );
+		end
+		--
+		table.sort ( RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"],
+			function ( item1, item2 )
+				return item1["name"] < item2["name"]; -- Sort by name A-Z
+			end
+		);
+		--
+		listKey = listKey + 1;
+		RestockShop_TimeDelayFunction( 1, queueList );
+	end
+	-- Function: queryList()
+	local function queryList()
+		for itemKey, item in ipairs( RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"] ) do
+			local name,link,quality,_,_,_,_,maxStack,_,texture,_ = GetItemInfo( item["itemId"] );
+		end
+		--
+		local _,_,_,latencyWorld = GetNetStats();
+		local delay = math.ceil( #RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["items"] * ( ( latencyWorld > 0 and latencyWorld or 300 ) * 0.10 * 0.001 ) );
+		delay = delay > 0 and delay or 1;
+		RestockShop_TimeDelayFunction( delay, updateList );
+	end
+	-- Forward Declared Function: queueList()
+	queueList = function()
+		if listKey <= #RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"] then
+			if RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][listKey]["name"] then
+				queryList();
+			else
+				listKey = listKey + 1;
+				queueList();
+			end
+		else
+			-- Update complete, save new build
+			RESTOCKSHOP_SAVEDVARIABLES["wowClientBuild"] = RESTOCKSHOP_WOW_CLIENT_BUILD;
+		end
+	end
+	--
+	listKey = 1;
+	RestockShop_TimeDelayFunction( 30, queueList ); -- Delay allows time for WoW client to establish latency
+end
+
+--
+function RestockShop_FindItemKey( itemId, shoppingList )
+	shoppingList = shoppingList or RESTOCKSHOP_CURRENT_LISTKEY;
+	for k, v in ipairs( RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][shoppingList]["items"] ) do
+		if v["itemId"] == itemId then
+			return k;
+		end
+	end
+	return nil;
+end
+
+--
+function RestockShop_SetCanBid( enable )
+	if enable then
+		RestockShopFrame_DialogFrame_BuyoutFrame_AcceptButton:Enable();
+		RestockShopFrame_DialogFrame_BuyoutFrame_CancelButton:Enable();
+	else
+		RestockShopFrame_DialogFrame_BuyoutFrame_AcceptButton:Disable();
+		RestockShopFrame_DialogFrame_BuyoutFrame_CancelButton:Disable();
+	end
+	RESTOCKSHOP_CAN_BID = enable;
+end
+
+--
+function RestockShop_TSMItemString( itemLink )
+	local itemString = string.match( itemLink, "item[%-?%d:]+" );
+	local s1,s2,s3,s4,s5,s6,s7,s8 = strsplit( ":", itemString );
+	return s1 .. ":" .. s2 .. ":" .. s3 .. ":" .. s4 .. ":" .. s5 .. ":" .. s6 .. ":" .. s7 .. ":" .. s8;
+end
+
+--
+function RestockShop_QOH( tsmItemString )
+	local qoh = 0;
+	local options = RESTOCKSHOP_SAVEDVARIABLES["qoh"];
+	local currentPlayerTotal, otherPlayersTotal = TSMAPI:ModuleAPI( "ItemTracker", "playertotal", tsmItemString ); -- Bags, Bank, and Mail
+	if options["allCharacters"] == 1 then
+		-- All Characters
+		qoh = qoh + currentPlayerTotal + otherPlayersTotal; -- Bags, Bank, and Mail
+		qoh = qoh + TSMAPI:ModuleAPI( "ItemTracker", "auctionstotal", tsmItemString ); -- Auction Listings
+		if options["guilds"] then
+			qoh = qoh + TSMAPI:ModuleAPI( "ItemTracker", "guildtotal", tsmItemString ); -- Guild Bank
+		end
+	elseif options["allCharacters"] == 2 then
+		-- Current Character
+		qoh = qoh + currentPlayerTotal;
+		local playerAuctions = TSMAPI:ModuleAPI( "ItemTracker", "playerauctions", GetUnitName( "player" ) ); -- Auction Listings
+		qoh = qoh + ( playerAuctions[tsmItemString] or 0 );
+		if options["guilds"] then
+			local guild,_,_ = GetGuildInfo( "player" );
+			if guild then
+				local guildBank = TSMAPI:ModuleAPI( "ItemTracker", "guildbank", guild );
+				qoh = qoh + ( guildBank[tsmItemString] or 0 );
+			end
+		end
+	end
+	return qoh;
+end
+
+--
+function RestockShop_RestockPct( onHandQty, fullStockQty )
+	return ( onHandQty * 100 ) / fullStockQty;
+end
+
+--
+function RestockShop_MaxPrice( itemValue, restockPct, maxPricePct, returnRestock )
+	local maxPrice = nil;
+	if restockPct < RESTOCKSHOP_SAVEDVARIABLES["lowStockPct"] then
+		maxPrice = math.ceil( ( itemValue * maxPricePct["low"] ) / 100 );
+		restock = "Low"; -- Do not translate here
+	elseif restockPct < 100 then
+		maxPrice = math.ceil( ( itemValue * maxPricePct["normal"] ) / 100 );
+		restock = "Norm"; -- Do not translate here
+	else
+		maxPrice = math.ceil( ( itemValue * maxPricePct["full"] ) / 100 );
+		restock = "Full"; -- Do not translate here
+	end
+	--
+	if returnRestock then
+		return unpack( { maxPrice, restock } );
+	else
+		return maxPrice;
+	end
 end
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- Slash Commands
@@ -1907,7 +2026,7 @@ SlashCmdList["RESTOCKSHOP"] = RestockShop_SlashCmdHandler;
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- Create Frames
 --------------------------------------------------------------------------------------------------------------------------------------------
-local f, fs, tx = nil, nil, nil;
+local f, fs, tx, overlay = nil, nil, nil, nil;
 local backdrop1 = { ["bgFile"] = "Interface\\DialogFrame\\UI-DialogBox-Background", ["tile"] = true, ["tileSize"] = 64, ["insets"] = { ["left"] = 5, ["right"] = 5, ["top"] = 5, ["bottom"] = 5 } };
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- RestockShopInterfaceOptionsPanelParent
@@ -1937,7 +2056,7 @@ fs:SetJustifyV( "TOP" );
 fs:SetPoint( "TOPLEFT", 16, -16 );
 -- RestockShopInterfaceOptionsPanel > SubText
 fs = f:CreateFontString( "$parentSubText", "ARTWORK", "GameFontHighlightSmall" );
-fs:SetText( string.format( L["These options allow you to control how %s\"Item Value\"|r and %s\"On Hand\"|r quantities are calculated. %s\"Low Stock %%\"|r determines at what %s\"On Hand\"|r percentage of %s\"Full Stock Qty\"|r an item's max price becomes the %s\"Low\"|r setting."], NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, RESTOCKSHOP_LOW_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, RESTOCKSHOP_LOW_COLOR_CODE ) );
+fs:SetText( L["These options apply to all characters on your account."] );
 fs:SetNonSpaceWrap( true );
 fs:SetMaxLines( 3 );
 fs:SetJustifyH( "LEFT" );
@@ -1950,42 +2069,79 @@ f = CreateFrame( "Frame", "$parentItemValueSrcDropDownMenuLabel", RestockShopInt
 f:SetSize( 200, 20 );
 f:SetPoint( "TOPLEFT", "$parentSubText", "BOTTOMLEFT", 0, -8 );
 fs = f:CreateFontString( nil, "BACKGROUND", "GameFontNormalSmall" );
-fs:SetText( L["Item Value Source (Auctionator, Auctioneer, AuctionDB, WoWuction)"] );
+fs:SetText( L["Item Value Source"] );
 fs:SetJustifyH( "LEFT" );
 fs:SetPoint( "LEFT" );
 -- RestockShopInterfaceOptionsPanel > ItemValueSrcDropDownMenu
 f = CreateFrame( "Frame", "$parentItemValueSrcDropDownMenu", RestockShopInterfaceOptionsPanel, "UIDropDownMenuTemplate" );
 f:SetPoint( "TOPLEFT", "$parentItemValueSrcDropDownMenuLabel", "BOTTOMLEFT", -12, 2 );
+f:SetScript( "OnEnter", function ( self )
+	GameTooltip:SetOwner( self, "ANCHOR_TOPRIGHT", 3 );
+	GameTooltip:SetText( string.format( L["Sets the data source for Item Value.\nYou must have the corresponding addon\ninstalled and it's price data available.\n\nItem Value is the base price from which\n%sLow|r, %sNorm|r, and %sFull|r prices are calculated."], RESTOCKSHOP_LOW_COLOR_CODE, RESTOCKSHOP_NORM_COLOR_CODE, RESTOCKSHOP_FULL_COLOR_CODE ) );
+end );
+f:SetScript( "OnLeave", GameTooltip_Hide );
 -- RestockShopInterfaceOptionsPanel > QOHAllCharactersDropDownMenuLabel
 f = CreateFrame( "Frame", "$parentQOHAllCharactersDropDownMenuLabel", RestockShopInterfaceOptionsPanel );
 f:SetSize( 200, 20 );
 f:SetPoint( "TOPLEFT", "$parentItemValueSrcDropDownMenu", "BOTTOMLEFT", 12, -8 );
 fs = f:CreateFontString( nil, "BACKGROUND", "GameFontNormalSmall" );
-fs:SetText( L["On Hand Tracking (TSM ItemTracker)"] );
+fs:SetText( L["On Hand Tracking"] );
 fs:SetJustifyH( "LEFT" );
 fs:SetPoint( "LEFT" );
 -- RestockShopInterfaceOptionsPanel > QOHAllCharactersDropDownMenu
 f = CreateFrame( "Frame", "$parentQOHAllCharactersDropDownMenu", RestockShopInterfaceOptionsPanel, "UIDropDownMenuTemplate" );
 f:SetPoint( "TOPLEFT", "$parentQOHAllCharactersDropDownMenuLabel", "BOTTOMLEFT", -12, 2 );
+f:SetScript( "OnEnter", function ( self )
+	GameTooltip:SetOwner( self, "ANCHOR_TOPRIGHT", 3 );
+	GameTooltip:SetText( string.format( L["Sets which characters to\ninclude for On Hand values.\n\n%sWARNING!|r\nTradeSkillMaster_ItemTracker\nsettings affect On Hand values."], RED_FONT_COLOR_CODE ) );
+end );
+f:SetScript( "OnLeave", GameTooltip_Hide );
 -- RestockShopInterfaceOptionsPanel > QOHGuildsCheckButton
 f = CreateFrame( "CheckButton", "$parentQOHGuildsCheckButton", RestockShopInterfaceOptionsPanel, "InterfaceOptionsSmallCheckButtonTemplate" );
 f:SetPoint( "TOPLEFT", "$parentQOHAllCharactersDropDownMenu", "TOPRIGHT", -2, -1 );
 _G[f:GetName() .. 'Text']:SetText( L["Include Guild Bank(s)"] );
+f.tooltip = string.format( L["On Hand values include the\nGuild Bank(s) based on whether\nyou selected All Characters\nor Current Character.\n\n%sWARNING!|r\nTradeSkillMaster_ItemTracker\nsettings affect On Hand values."], RED_FONT_COLOR_CODE ) ;
+f:SetScript( "OnEnter", function ( self )
+	GameTooltip:SetOwner( self, "ANCHOR_TOPLEFT", 25 );
+	GameTooltip:SetText( self.tooltip );
+end );
+f:SetScript( "OnLeave", GameTooltip_Hide );
 -- RestockShopInterfaceOptionsPanel > LowStockPctDropDownMenuLabel
 f = CreateFrame( "Frame", "$parentLowStockPctDropDownMenuLabel", RestockShopInterfaceOptionsPanel );
 f:SetSize( 200, 20 );
 f:SetPoint( "TOPLEFT", "$parentQOHAllCharactersDropDownMenu", "BOTTOMLEFT", 12, -8 );
 fs = f:CreateFontString( nil, "BACKGROUND", "GameFontNormalSmall" );
-fs:SetText( string.format( L["%sLow Stock %%|r (Percent of Item's Full Stock Qty)"], RESTOCKSHOP_LOW_COLOR_CODE ) );
+fs:SetText( string.format( L["%sLow Stock %%|r"], RESTOCKSHOP_LOW_COLOR_CODE ) );
 fs:SetJustifyH( "LEFT" );
 fs:SetPoint( "LEFT" );
 -- RestockShopInterfaceOptionsPanel > LowStockPctDropDownMenu
 f = CreateFrame( "Frame", "$parentLowStockPctDropDownMenu", RestockShopInterfaceOptionsPanel, "UIDropDownMenuTemplate" );
 f:SetPoint( "TOPLEFT", "$parentLowStockPctDropDownMenuLabel", "BOTTOMLEFT", -12, 2 );
+f:SetScript( "OnEnter", function ( self )
+	GameTooltip:SetOwner( self, "ANCHOR_TOPRIGHT", 3 );
+	GameTooltip:SetText( string.format( L["When an item's On Hand quantity\nfalls below this percentage it's\nconsidered %sLow|r."], RESTOCKSHOP_LOW_COLOR_CODE ) );
+end );
+f:SetScript( "OnLeave", GameTooltip_Hide );
+-- RestockShopInterfaceOptionsPanel > HideOverstockStacksPctDropDownMenuLabel
+f = CreateFrame( "Frame", "$parentHideOverstockStacksPctDropDownMenuLabel", RestockShopInterfaceOptionsPanel );
+f:SetSize( 200, 20 );
+f:SetPoint( "TOPLEFT", "$parentLowStockPctDropDownMenu", "BOTTOMLEFT", 12, -8 );
+fs = f:CreateFontString( nil, "BACKGROUND", "GameFontNormalSmall" );
+fs:SetText( string.format( L["%sHide Overstock Stacks %%|r"], RESTOCKSHOP_FULL_COLOR_CODE ) );
+fs:SetJustifyH( "LEFT" );
+fs:SetPoint( "LEFT" );
+-- RestockShopInterfaceOptionsPanel > HideOverstockStacksPctDropDownMenu
+f = CreateFrame( "Frame", "$parentHideOverstockStacksPctDropDownMenu", RestockShopInterfaceOptionsPanel, "UIDropDownMenuTemplate" );
+f:SetPoint( "TOPLEFT", "$parentHideOverstockStacksPctDropDownMenuLabel", "BOTTOMLEFT", -12, 2 );
+f:SetScript( "OnEnter", function ( self )
+	GameTooltip:SetOwner( self, "ANCHOR_TOPRIGHT", 3 );
+	GameTooltip:SetText( L["Hides auctions that when purchased\nwould cause you to exceed your\nFull Stock Qty by more than this\npercentage.\n\n(Toggle on/off at the Auction House)"] );
+end );
+f:SetScript( "OnLeave", GameTooltip_Hide );
 -- RestockShopInterfaceOptionsPanel > ItemTooltipLabel
 f = CreateFrame( "Frame", "$parentItemTooltipLabel", RestockShopInterfaceOptionsPanel );
 f:SetSize( 200, 20 );
-f:SetPoint( "TOPLEFT", "$parentLowStockPctDropDownMenu", "BOTTOMLEFT", 12, -8 );
+f:SetPoint( "TOPLEFT", "$parentHideOverstockStacksPctDropDownMenu", "BOTTOMLEFT", 12, -8 );
 fs = f:CreateFontString( nil, "BACKGROUND", "GameFontNormalSmall" );
 fs:SetText( L["Item Tooltip"] );
 fs:SetJustifyH( "LEFT" );
@@ -1994,7 +2150,7 @@ fs:SetPoint( "LEFT" );
 f = CreateFrame( "CheckButton", "$parentItemTooltipShoppingListSettingsCheckButton", RestockShopInterfaceOptionsPanel, "InterfaceOptionsSmallCheckButtonTemplate" );
 f:SetPoint( "TOPLEFT", "$parentItemTooltipLabel", "BOTTOMLEFT", 3, -1 );
 _G[f:GetName() .. 'Text']:SetText( L["Shopping List Settings"] );
-f.tooltip = L["Display item settings for the currently selected shopping list in the item's tooltip"];
+f.tooltip = L["Displays item settings for the\ncurrently selected shopping\nlist in the item's tooltip."];
 f:SetScript( "OnEnter", function ( self )
 	GameTooltip:SetOwner( self, "ANCHOR_TOPLEFT", 25 );
 	GameTooltip:SetText( self.tooltip );
@@ -2004,7 +2160,7 @@ f:SetScript( "OnLeave", GameTooltip_Hide );
 f = CreateFrame( "CheckButton", "$parentItemTooltipItemIdCheckButton", RestockShopInterfaceOptionsPanel, "InterfaceOptionsSmallCheckButtonTemplate" );
 f:SetPoint( "TOPLEFT", "$parentItemTooltipShoppingListSettingsCheckButton", "BOTTOMLEFT", 0, -1 );
 _G[f:GetName() .. 'Text']:SetText( L["Item ID"] );
-f.tooltip = L["Display the Item ID in the tooltip of all items"];
+f.tooltip = L["Displays the Item ID in the\ntooltip of all items."];
 f:SetScript( "OnEnter", function ( self )
 	GameTooltip:SetOwner( self, "ANCHOR_TOPLEFT", 25 );
 	GameTooltip:SetText( self.tooltip );
@@ -2022,7 +2178,7 @@ fs:SetPoint( "LEFT" );
 f = CreateFrame( "CheckButton", "$parentshowDeleteItemConfirmDialogCheckButton", RestockShopInterfaceOptionsPanel, "InterfaceOptionsSmallCheckButtonTemplate" );
 f:SetPoint( "TOPLEFT", "$parentMiscLabel", "BOTTOMLEFT", 3, -1 );
 _G[f:GetName() .. 'Text']:SetText( L["Show Delete Item Confirmation Dialog"] );
-f.tooltip = L["Confirm before deleting an item from a shopping list"];
+f.tooltip = L["Confirm before deleting an\nitem from a shopping list."];
 f:SetScript( "OnEnter", function ( self )
 	GameTooltip:SetOwner( self, "ANCHOR_TOPLEFT", 25 );
 	GameTooltip:SetText( self.tooltip );
@@ -2049,7 +2205,7 @@ fs:SetJustifyV( "TOP" );
 fs:SetPoint( "TOPLEFT", 16, -16 );
 -- RestockShopInterfaceOptionsPanelShoppingLists > SubText
 fs = f:CreateFontString( "$parentSubText", "ARTWORK", "GameFontHighlightSmall" );
-fs:SetText( string.format( L["These options allow you to create, copy, and delete shopping lists and the items they contain. ITEMS - %s\"Full Stock Qty\"|r is the maximum number of an item you want to keep in stock. %s\"Low\"|r, %s\"Norm\"|r, and %s\"Full\"|r contain an item's max price in terms of it's %s\"Item Value\"|r at the corresponding stock quantity. If you want to stop shopping for an item at %s\"Full Stock Qty\"|r leave %s\"Full\"|r %sempty|r or set to %s0|r."], NORMAL_FONT_COLOR_CODE, RESTOCKSHOP_LOW_COLOR_CODE, RESTOCKSHOP_NORM_COLOR_CODE, RESTOCKSHOP_FULL_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, RESTOCKSHOP_FULL_COLOR_CODE, BATTLENET_FONT_COLOR_CODE, BATTLENET_FONT_COLOR_CODE ) );
+fs:SetText( string.format( L["%sItem ID|r can be found in the item's in-game tooltip or Wowhead URL (e.g. /item=12345/)\n%sFull Stock Qty|r is the max number of an item you want to keep in stock.\n%sLow|r, %sNorm|r, and %sFull|r contain the item's max price at the corresponding stock quantity.\n%sNote:|r To avoid scanning for an item at %sFull Stock Qty|r leave %sFull|r %sempty|r or set to %s0|r."], NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, RESTOCKSHOP_LOW_COLOR_CODE, RESTOCKSHOP_NORM_COLOR_CODE, RESTOCKSHOP_FULL_COLOR_CODE, RED_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, RESTOCKSHOP_FULL_COLOR_CODE, BATTLENET_FONT_COLOR_CODE, BATTLENET_FONT_COLOR_CODE ) );
 fs:SetNonSpaceWrap( true );
 fs:SetMaxLines( 5 );
 fs:SetJustifyH( "LEFT" );
@@ -2650,7 +2806,11 @@ f:SetScript( "OnClick", function ( self )
 		RestockShopFrame_BuyAllButton:Click();
 	else
 		RestockShopFrame_ScrollFrame_Auction_Deselect();
-		RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
+		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+			RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+		else
+			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
+		end
 	end
 end );
 f:SetScript( "OnEnter", RestockShop_TruncatedText_OnEnter );
@@ -2722,7 +2882,11 @@ f:SetScript( "OnClick", function ( self )
 	if RESTOCKSHOP_BUYALL then
 		RESTOCKSHOP_BUYALL = false;
 		self:SetText( L["Buy All"] );
-		RestockShopFrame_DialogFrame_StatusFrame_Update( L["Buy All has been stopped"] .. ". " .. L["Select an auction to buy or click \"Buy All\""] );
+		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+			RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Buy All has been stopped"] .. ". " .. L["Select an auction to buy or click \"Buy All\""] );
+		else
+			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Buy All has been stopped"] .. ". " .. L["Select an auction to buy or click \"Buy All\""] );
+		end
 		RestockShopFrame_ScrollFrame_Auction_Deselect();
 	else
 		RESTOCKSHOP_BUYALL = true;
@@ -2748,6 +2912,7 @@ f:SetScript( "OnClick", function ( self )
 		RESTOCKSHOP_QUERY_QUEUE= {};
 		RESTOCKSHOP_AUCTION_DATA_RAW = {};
 		RESTOCKSHOP_AUCTION_DATA_GROUPS = {};
+		RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN = {};
 		RestockShopFrame_ScrollFrame_Auction_Deselect();
 		RestockShopFrame_ScrollFrame_Update();
 		RestockShopFrame_ListStatusFrame:Hide();
@@ -2804,7 +2969,6 @@ fs:SetText( "" );
 fs:SetPoint( "BOTTOM", 0, 8 );
 -- RestockShopFrame > FlyoutPanelButton
 f = CreateFrame( "Button", "$parent_FlyoutPanelButton", RestockShopFrame );
-f:SetText( L["Shopping Lists"] );
 f:SetSize( 28, 28 );
 f:SetPoint( "TOPRIGHT", "$parent_FlyoutPanel", "TOPLEFT", -4, 2 );
 f:SetScript( "OnClick", function ( self )
@@ -2813,20 +2977,17 @@ f:SetScript( "OnClick", function ( self )
 		flyoutPanel:Hide();
 		RESTOCKSHOP_SAVEDVARIABLES["flyoutPanelOpen"] = nil;
 		self:SetNormalTexture( "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up" );
-		self:SetDisabledTexture( "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Disabled" );
 		self:SetPushedTexture( "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Down" );
 	else
 		flyoutPanel:Show();
 		RESTOCKSHOP_SAVEDVARIABLES["flyoutPanelOpen"] = 1;
 		self:SetNormalTexture( "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up" );
-		self:SetDisabledTexture( "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Disabled" );
 		self:SetPushedTexture( "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Down" );
 	end
 end );
 f:SetNormalTexture( "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up" );
-f:SetHighlightTexture( "Interface\\Buttons\\UI-Common-MouseHilight", "ADD" );
-f:SetDisabledTexture( "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Disabled" );
 f:SetPushedTexture( "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Down" );
+f:SetHighlightTexture( "Interface\\Buttons\\UI-Common-MouseHilight", "ADD" );
 -- RestockShopFrame_FlyoutPanel > ScrollFrame
 f = CreateFrame( "ScrollFrame", "$parent_ScrollFrame", RestockShopFrame_FlyoutPanel, "FauxScrollFrameTemplate" );
 f:SetSize( 220, 315 );
@@ -2852,6 +3013,59 @@ for i = 2, 17 do
 	f = CreateFrame( "Button", ( "$parent_ScrollFrame_Entry" .. i ), RestockShopFrame_FlyoutPanel, "RestockShopFrame_FlyoutPanel_ScrollFrame_EntryTemplate" );
 	f:SetPoint( "TOPLEFT", ( "$parent_ScrollFrame_Entry" .. ( i - 1 ) ), "BOTTOMLEFT", 0, -3 );
 end
+-- RestockShopFrame > HideOverstockStacksButton
+f = CreateFrame( "Button", "$parent_HideOverstockStacksButton", RestockShopFrame );
+f:SetSize( 32, 32 );
+f:SetPoint( "TOPRIGHT", "$parent_OnHandSortButton", "BOTTOMLEFT", -6, -7 );
+f:SetNormalTexture( "Interface\\FriendsFrame\\UI-FriendsList-Large-Up" );
+f:SetPushedTexture( "Interface\\FriendsFrame\\UI-FriendsList-Large-Down" );
+f:SetHighlightTexture( "Interface\\FriendsFrame\\UI-FriendsList-Highlight", "ADD" );
+f:SetScript( "OnClick", function ( self )
+	if RESTOCKSHOP_SCANNING then
+		print( "RestockShop: " .. L["Selection ignored, busy scanning"] );
+		return; -- Stop function
+	end
+	--
+	RestockShopFrame_DialogFrame_BuyoutFrame_CancelButton:Click();
+	--
+	if RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] then
+		-- Show
+		RestockShop_AuctionDataGroups_ShowOverstockStacks();
+		RestockShop_AuctionDataGroups_Sort();
+		RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] = nil;
+		self:UnlockHighlight();
+	else
+		-- Hide
+		RestockShop_AuctionDataGroups_HideOverstockStacks();
+		RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] = 1;
+		self:LockHighlight();
+	end
+	--
+	if next( RESTOCKSHOP_AUCTION_DATA_GROUPS ) then
+		-- Auctions shown
+		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+			RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+		else
+			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
+		end
+		RestockShopFrame_BuyAllButton:Enable();
+	elseif next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+		-- Auctions hidden
+		RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["No additional auctions matched your settings"] );
+		RestockShopFrame_BuyAllButton:Disable();
+	elseif next( RESTOCKSHOP_ITEMS ) then
+		-- Auctions scanned, but none available
+		RestockShopFrame_DialogFrame_StatusFrame_Update( L["No additional auctions matched your settings"] );
+		RestockShopFrame_BuyAllButton:Disable();
+	end
+	RestockShopFrame_ScrollFrame:SetVerticalScroll( 0 );
+	RestockShopFrame_ScrollFrame_Update();
+end );
+f:SetScript( "OnEnter", function ( self )
+	GameTooltip:SetOwner( self, "ANCHOR_BOTTOMRIGHT" );
+	GameTooltip:SetText( string.format( L["%sHide Overstock Stacks|r\n\nHides auctions that when purchased would cause you\nto exceed your \"Full Stock Qty\" by more than %s%s%%|r"], RESTOCKSHOP_FULL_COLOR_CODE, RESTOCKSHOP_FULL_COLOR_CODE, RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacksPct"] ) );
+end );
+f:SetScript( "OnLeave", GameTooltip_Hide );
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- RestockShopEventsFrame
 --------------------------------------------------------------------------------------------------------------------------------------------
