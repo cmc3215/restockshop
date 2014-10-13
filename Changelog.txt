@@ -1,3 +1,8 @@
+**2.5**
+* Release date: 10/14/2014
+* Updated Interface version to 60000, keeps the addon from appearing as "Out of date" in patch 6.0.x
+* Removed Item Value Sources DBGlobalMarketMedian and DBGlobalMinBuyoutMedian, TSM announced they're no longer supporting Median price sources in AuctionDB.
+
 **2.4**
 * Release date: 09/25/2014
 * With patch 6.0.x the stack size of many items have been increased to 200 so I've added a button on the RestockShop auction tab to toggle hiding auctions that when purchased would cause you to exceed your "Full Stock Qty" by more than 20% by default but can be changed on options panel - This is meant to help get you closer to your "Full Stock Qty" with minimal overbuying especially when using the "Buy All" feature - As a convenience I've included the message "Hidden auctions available" when this feature is toggled on and is currently hiding auctions

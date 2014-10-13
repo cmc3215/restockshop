@@ -177,10 +177,16 @@ function RestockShop_Upgrade()
 		--
 		RESTOCKSHOP_SAVEDVARIABLES["wowClientBuild"] = 0; -- Forces the item data update that was added this version
 	end
-	--
+	-- 2.4
 	if version < 2.4 then
 		RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] = vars["hideOverstockStacks"];
 		RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacksPct"] = vars["hideOverstockStacksPct"];
+	end
+	-- 2.5
+	if version < 2.5 then
+		if RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] == "DBGlobalMarketMedian" or RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] == "DBGlobalMinBuyoutMedian" then
+			RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] = vars["itemValueSrc"];
+		end
 	end
 	--
 	print( "RestockShop: " .. string.format( L["Upgraded version %s to %s"], version, RESTOCKSHOP_VERSION ) );
@@ -958,9 +964,7 @@ function RestockShopInterfaceOptionsPanel_Load()
 			DropDownMenu_AddButton( frame, L["AucMarket (Auctioneer - Market Value)"], "AucMarket" );
 			DropDownMenu_AddButton( frame, L["AucMinBuyout (Auctioneer - Minimum Buyout)"], "AucMinBuyout" );
 			DropDownMenu_AddButton( frame, L["DBGlobalMarketAvg (AuctionDB - Global Market Value Average (via TSM App))"], "DBGlobalMarketAvg" );
-			DropDownMenu_AddButton( frame, L["DBGlobalMarketMedian (AuctionDB - Global Market Value Median (via TSM App))"], "DBGlobalMarketMedian" );
 			DropDownMenu_AddButton( frame, L["DBGlobalMinBuyoutAvg (AuctionDB - Global Minimum Buyout Average (via TSM App))"], "DBGlobalMinBuyoutAvg" );
-			DropDownMenu_AddButton( frame, L["DBGlobalMinBuyoutMedian (AuctionDB - Global Minimum Buyout Median (via TSM App))"], "DBGlobalMinBuyoutMedian" );
 			DropDownMenu_AddButton( frame, L["DBGlobalSaleAvg (AuctionDB - Global Sale Average (via TSM App))"], "DBGlobalSaleAvg" );
 			DropDownMenu_AddButton( frame, L["DBMarket (AuctionDB Market Value)"], "DBMarket" );
 			DropDownMenu_AddButton( frame, L["DBMinBuyout (AuctionDB Minimum Buyout)"], "DBMinBuyout" );
@@ -997,7 +1001,7 @@ function RestockShopInterfaceOptionsPanel_Load()
 	-- Item Value Source Dropdown
 	UIDropDownMenu_Initialize( _G[panelName .. "ItemValueSrcDropDownMenu"], DropDownMenu_Initialize );
 	UIDropDownMenu_SetSelectedValue( _G[panelName .. "ItemValueSrcDropDownMenu"], RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] );
-	UIDropDownMenu_SetWidth( _G[panelName .. "ItemValueSrcDropDownMenu"], 488 );
+	UIDropDownMenu_SetWidth( _G[panelName .. "ItemValueSrcDropDownMenu"], 475 );
 	-- QOH All Characters Dropdown
 	UIDropDownMenu_Initialize( _G[panelName .. "QOHAllCharactersDropDownMenu"], DropDownMenu_Initialize );
 	UIDropDownMenu_SetSelectedValue( _G[panelName .. "QOHAllCharactersDropDownMenu"], RESTOCKSHOP_SAVEDVARIABLES["qoh"]["allCharacters"] );
