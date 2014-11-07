@@ -111,20 +111,20 @@ function RestockShop_DefaultSavedVariables()
 	return {
 		["version"] = RESTOCKSHOP_VERSION,
 		["wowClientBuild"] = RESTOCKSHOP_WOW_CLIENT_BUILD,
-		["hideOverstockStacks"] = nil,
+		["flyoutPanelOpen"] = true,
+		["hideOverstockStacks"] = false,
 		["itemValueSrc"] = ( addonLoaded["TradeSkillMaster_AuctionDB"] and "DBMarket" ) or ( addonLoaded["TradeSkillMaster_WoWuction"] and "wowuctionMarket" ) or ( addonLoaded["Auc-Advanced"] and "AucMarket" ) or ( addonLoaded["Auctionator"] and "AtrValue" ),
 		["lowStockPct"] = 30,
 		["qoh"] = {
 			["allCharacters"] = 1,
-			["guilds"] = 1,
+			["guilds"] = true,
 		},
 		["hideOverstockStacksPct"] = 20,
 		["itemTooltip"] = {
-			["shoppingListSettings"] = 1,
-			["itemId"] = 1,
+			["shoppingListSettings"] = true,
+			["itemId"] = true,
 		},
-		["showDeleteItemConfirmDialog"] = 1,
-		["flyoutPanelOpen"] = 1,
+		["showDeleteItemConfirmDialog"] = true,
 		["shoppingLists"] = {
 			[1] = {
 				["name"] = L["Restock Shopping List"],
@@ -389,9 +389,11 @@ function RestockShopFrame_Reset( flyoutPanelEntryClick )
 	RestockShopEventsFrame:UnregisterEvent( "CHAT_MSG_SYSTEM" );
 	--
 	RestockShop_StopScanning();
-	RestockShopFrame_DialogFrame_BuyoutFrame_CancelButton:Click();
 	RestockShopFrame_ScrollFrame_Auction_Deselect();
-	RestockShop_SetCanBid( false );
+	RestockShopFrame_DialogFrame_StatusFrame_Update( L["Press \"Shop\" to scan your list or click an item on the right to scan a single item"] );
+	RestockShopFrame_ShoppingListsDropDownMenu_Load();
+	RestockShopFrame_ShopButton_Reset();
+	RestockShopFrame_BuyAllButton_Reset();
 	--
 	RESTOCKSHOP_ITEMS = {};
 	RESTOCKSHOP_QUERY_ITEM = {};
@@ -399,19 +401,12 @@ function RestockShopFrame_Reset( flyoutPanelEntryClick )
 	RESTOCKSHOP_AUCTION_DATA_GROUPS = {};
 	RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN = {};
 	--
-	RestockShopFrame_HideSortButtonArrows();
-	RestockShopFrame_NameSortButton:Click();
 	RestockShopFrame_ScrollFrame:SetVerticalScroll( 0 );
-	RestockShopFrame_ScrollFrame_Update();
+	RestockShopFrame_HideSortButtonArrows();
+	RestockShopFrame_NameSortButton:Click(); -- Also updates ScrollFrame
 	--
 	RestockShopFrame_ListStatusFrame_Text:SetText( string.format( "%s\n\n%s   =   %s%d|r", RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][RESTOCKSHOP_CURRENT_LISTKEY]["name"], RestockShopFrame_ListSummary(), NORMAL_FONT_COLOR_CODE, #RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][RESTOCKSHOP_CURRENT_LISTKEY]["items"] ) );
 	RestockShopFrame_ListStatusFrame:Show();
-	--
-	RestockShopFrame_DialogFrame_StatusFrame_Update( L["Press \"Shop\" to scan your list or click an item on the right to scan a single item"] );
-	--
-	RestockShopFrame_ShoppingListsDropDownMenu_Load();
-	RestockShopFrame_ShopButton_Reset();
-	RestockShopFrame_BuyAllButton_Reset();
 	--
 	RestockShopFrame_FlyoutPanel.TitleText:SetText( RESTOCKSHOP_SAVEDVARIABLES["shoppingLists"][RESTOCKSHOP_CURRENT_LISTKEY]["name"] );
 	if not flyoutPanelEntryClick then
@@ -2979,12 +2974,12 @@ f:SetScript( "OnClick", function ( self )
 	local flyoutPanel = _G[self:GetParent():GetName() .. "_FlyoutPanel"];
 	if flyoutPanel:IsShown() then
 		flyoutPanel:Hide();
-		RESTOCKSHOP_SAVEDVARIABLES["flyoutPanelOpen"] = nil;
+		RESTOCKSHOP_SAVEDVARIABLES["flyoutPanelOpen"] = false;
 		self:SetNormalTexture( "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up" );
 		self:SetPushedTexture( "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Down" );
 	else
 		flyoutPanel:Show();
-		RESTOCKSHOP_SAVEDVARIABLES["flyoutPanelOpen"] = 1;
+		RESTOCKSHOP_SAVEDVARIABLES["flyoutPanelOpen"] = true;
 		self:SetNormalTexture( "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up" );
 		self:SetPushedTexture( "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Down" );
 	end
@@ -3036,12 +3031,12 @@ f:SetScript( "OnClick", function ( self )
 		-- Show
 		RestockShop_AuctionDataGroups_ShowOverstockStacks();
 		RestockShop_AuctionDataGroups_Sort();
-		RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] = nil;
+		RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] = false;
 		self:UnlockHighlight();
 	else
 		-- Hide
 		RestockShop_AuctionDataGroups_HideOverstockStacks();
-		RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] = 1;
+		RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] = true;
 		self:LockHighlight();
 	end
 	--
