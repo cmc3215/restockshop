@@ -1,3 +1,7 @@
+**2.7**
+* Release date: 02/24/2015
+* TOC updated for patch 6.1
+
 **2.6**
 * Release date: 11/07/2014
 * Bug fix, closing AH after a failed purchase attempt (not enough money, etc) with BuyAll enabled caused LUA error
