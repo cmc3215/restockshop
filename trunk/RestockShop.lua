@@ -5,6 +5,7 @@ local RESTOCKSHOP_VERSION = tonumber( GetAddOnMetadata( "RestockShop", "Version"
 local RESTOCKSHOP_WOW_CLIENT_BUILD = select( 2, GetBuildInfo() );
 local RESTOCKSHOP_LOADED = false;
 local RESTOCKSHOP_TAB = nil;
+local RESTOCKSHOP_TOOLTIP = nil;
 --
 local RESTOCKSHOP_ITEMS = {};
 local RESTOCKSHOP_SCANNING = false;
@@ -27,7 +28,8 @@ local RESTOCKSHOP_QUERY_TOTAL_PAGES = nil;
 --
 local RESTOCKSHOP_AUCTION_DATA_RAW = {};
 local RESTOCKSHOP_AUCTION_DATA_GROUPS = {};
-local RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN = {};
+local RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED = {};
+local RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK = {};
 local RESTOCKSHOP_AUCTION_DATA_SORT_KEY = nil;
 local RESTOCKSHOP_AUCTION_DATA_SORT_ORDER = nil;
 local RESTOCKSHOP_AUCTION_SELECT_GROUPKEY = nil;
@@ -89,9 +91,10 @@ end
 -- Optional Dependency Check - Need at least one loaded
 --------------------------------------------------------------------------------------------------------------------------------------------
 local addonLoaded = {};
+local character = UnitName( "player" );
 for i = 1, GetNumAddOns() do
-	local name,_,_,loaded,_,_,_ = GetAddOnInfo( i );
-	if loaded == 1 or loaded == true then
+	local name,_,_,loadable,_,_,_ = GetAddOnInfo( i );
+	if loadable and GetAddOnEnableState( character, i ) > 0 then
 		addonLoaded[name] = true;
 	end
 end
@@ -112,6 +115,7 @@ function RestockShop_DefaultSavedVariables()
 		["version"] = RESTOCKSHOP_VERSION,
 		["wowClientBuild"] = RESTOCKSHOP_WOW_CLIENT_BUILD,
 		["flyoutPanelOpen"] = true,
+		["hideOverpricedStacks"] = true,
 		["hideOverstockStacks"] = false,
 		["itemValueSrc"] = ( addonLoaded["TradeSkillMaster_AuctionDB"] and "DBMarket" ) or ( addonLoaded["TradeSkillMaster_WoWuction"] and "wowuctionMarket" ) or ( addonLoaded["Auc-Advanced"] and "AucMarket" ) or ( addonLoaded["Auctionator"] and "AtrValue" ),
 		["lowStockPct"] = 30,
@@ -188,6 +192,10 @@ function RestockShop_Upgrade()
 			RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] = vars["itemValueSrc"];
 		end
 	end
+	-- 2.8
+	if version < 2.8 then
+		RESTOCKSHOP_SAVEDVARIABLES["hideOverpricedStacks"] = vars["hideOverpricedStacks"];
+	end
 	--
 	print( "RestockShop: " .. string.format( L["Upgraded version %s to %s"], version, RESTOCKSHOP_VERSION ) );
 	RESTOCKSHOP_SAVEDVARIABLES["version"] = RESTOCKSHOP_VERSION;
@@ -242,6 +250,8 @@ function RestockShop_OnAddonLoaded() -- ADDON_LOADED
 			-- Hook Item Tooltip
 			ItemRefTooltip:HookScript( "OnTooltipSetItem", RestockShop_AddTooltipData );
 			GameTooltip:HookScript( "OnTooltipSetItem", RestockShop_AddTooltipData );
+			ItemRefTooltip:HookScript( "OnTooltipCleared", Restockshop_ClearTooltipData );
+			GameTooltip:HookScript( "OnTooltipCleared", Restockshop_ClearTooltipData );
 			--
 			RESTOCKSHOP_LOADED = true;
 		end
@@ -272,6 +282,10 @@ function RestockShop_OnPlayerLogin() -- PLAYER_LOGIN
 	--
 	if not RESTOCKSHOP_SAVEDVARIABLES["flyoutPanelOpen"] then
 		RestockShopFrame_FlyoutPanelButton:Click();
+	end
+	--
+	if RESTOCKSHOP_SAVEDVARIABLES["hideOverpricedStacks"] then
+		RestockShopFrame_HideOverpricedStacksButton:LockHighlight();
 	end
 	--
 	if RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] then
@@ -331,8 +345,8 @@ function RestockShop_OnUIErrorMessage( ... ) -- UI_ERROR_MESSAGE
 					RestockShopFrame_ScrollFrame_Entry_OnClick( 1 );
 				else
 					RestockShopFrame_ScrollFrame_Update();
-					if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
-						RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+					if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+						RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 					else
 						RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
 					end
@@ -341,8 +355,8 @@ function RestockShop_OnUIErrorMessage( ... ) -- UI_ERROR_MESSAGE
 			else
 				-- No auctions exist
 				RestockShopFrame_ScrollFrame_Update();
-				if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
-					RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["No additional auctions matched your settings"] );
+				if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+					RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 				else
 					RestockShopFrame_DialogFrame_StatusFrame_Update( L["No additional auctions matched your settings"] );
 				end
@@ -399,7 +413,8 @@ function RestockShopFrame_Reset( flyoutPanelEntryClick )
 	RESTOCKSHOP_QUERY_ITEM = {};
 	RESTOCKSHOP_QUERY_QUEUE = {};
 	RESTOCKSHOP_AUCTION_DATA_GROUPS = {};
-	RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN = {};
+	RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED = {};
+	RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK = {};
 	--
 	RestockShopFrame_ScrollFrame:SetVerticalScroll( 0 );
 	RestockShopFrame_HideSortButtonArrows();
@@ -427,7 +442,7 @@ function RestockShopFrame_HideSortButtonArrows()
     _G["RestockShopFrame_RestockSortButtonArrow"]:Hide();
 	_G["RestockShopFrame_NameSortButtonArrow"]:Hide();
 	_G["RestockShopFrame_StackSizeSortButtonArrow"]:Hide();
-	_G["RestockShopFrame_PctMaxPriceSortButtonArrow"]:Hide();
+	_G["RestockShopFrame_PctItemValueSortButtonArrow"]:Hide();
 	_G["RestockShopFrame_ItemPriceSortButtonArrow"]:Hide();
 	_G["RestockShopFrame_OnHandSortButtonArrow"]:Hide();
 end
@@ -492,7 +507,11 @@ function RestockShopFrame_ScrollFrame_Update()
 			_G[EntryFrameName .. "_Name"]:SetTextColor( GetItemQualityColor( groups[offsetKey]["quality"] ) );
 			_G[EntryFrameName .. "_Stacks"]:SetText( string.format( L["%d stacks of %d"], groups[offsetKey]["numAuctions"], groups[offsetKey]["count"] ) );
 			MoneyFrame_Update( EntryFrameName .. "_ItemPrice_SmallMoneyFrame", groups[offsetKey]["itemPrice"] );
-			_G[EntryFrameName .. "_PctMaxPrice"]:SetText( math.floor( groups[offsetKey]["pctMaxPrice"] ) .. "% |cff7674d9(|r" .. maxPriceUsed .. "|cff7674d9)|r" );
+			--
+			_G[EntryFrameName .. "_PctItemValue"]:SetText( math.floor( groups[offsetKey]["pctItemValue"] ) .. "%" );
+			if groups[offsetKey]["pctMaxPrice"] > 100 then
+				_G[EntryFrameName .. "_PctItemValue"]:SetText( RED_FONT_COLOR_CODE .. _G[EntryFrameName .. "_PctItemValue"]:GetText() .. "|r" );
+			end
 			--
 			EntryFrame:SetScript( "OnClick", function () RestockShopFrame_ScrollFrame_Entry_OnClick( offsetKey ); end );
 			EntryFrame:Show();
@@ -1270,11 +1289,12 @@ end
 -- Auction Data Groups Functions
 --------------------------------------------------------------------------------------------------------------------------------------------
 function RestockShop_AuctionDataGroups_OnHandQtyChanged()
-	-- Remove: If restockPct is 100+ and no maxPricePct["full"] ---OR--- If pctMaxPrice is over 100
+	-- Remove: If restockPct is 100+ and no maxPricePct["full"]
 	-- Update: onHandQty, restockPct, pctMaxPrice
 	-- This function should be run when an auction is won, uses the RESTOCKSHOP_AUCTION_SELECT_AUCTION
 	-- ONLY Updates or Removes Groups for the ItemId that was won
-	RestockShop_AuctionDataGroups_ShowOverstockStacks()
+	RestockShop_AuctionDataGroups_ShowOverpricedStacks();
+	RestockShop_AuctionDataGroups_ShowOverstockStacks();
 	--
 	local groupKey = 1;
 	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS do
@@ -1284,7 +1304,7 @@ function RestockShop_AuctionDataGroups_OnHandQtyChanged()
 			local restockPct = RestockShop_RestockPct( onHandQty, group["fullStockQty"] );
 			local pctMaxPrice = math.ceil( ( group["itemPrice"] * 100 ) / RestockShop_MaxPrice( group["itemValue"], restockPct, RESTOCKSHOP_ITEMS[group["itemId"]]["maxPricePct"] ) );
 			--
-			if ( restockPct >= 100 and RESTOCKSHOP_ITEMS[group["itemId"]]["maxPricePct"]["full"] == 0 ) or pctMaxPrice > 100 then
+			if restockPct >= 100 and RESTOCKSHOP_ITEMS[group["itemId"]]["maxPricePct"]["full"] == 0 then
 				-- Remove
 				table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS, groupKey );
 			else
@@ -1299,8 +1319,45 @@ function RestockShop_AuctionDataGroups_OnHandQtyChanged()
 		end
 	end
 	--
+	if RESTOCKSHOP_SAVEDVARIABLES["hideOverpricedStacks"] then
+		RestockShop_AuctionDataGroups_HideOverpricedStacks();
+	end
+	--
 	if RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] then
 		RestockShop_AuctionDataGroups_HideOverstockStacks();
+	end
+end
+
+--
+function RestockShop_AuctionDataGroups_HideOverpricedStacks()
+	-- Remove: If pctMaxPrice > 100
+	-- Run this function when:
+		-- a) Auction is won (RestockShop_AuctionDataGroups_OnHandQtyChanged)
+		-- b) Inside RestockShop_ScanAuctionQueue() just before RestockShop_ScanComplete()
+		-- c) User toggles either Hide button
+	local groupKey = 1;
+	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS do
+		local group = RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey];
+		--
+		if group["pctMaxPrice"] > 100 then
+			-- Remove and insert
+			table.insert( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED, table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS, groupKey ) );
+		else
+			-- Increment to try the next group
+			groupKey = groupKey + 1;
+		end
+	end
+end
+
+--
+function RestockShop_AuctionDataGroups_ShowOverpricedStacks()
+	-- Run this function when:
+		-- a) Auction is won (RestockShop_AuctionDataGroups_OnHandQtyChanged)
+		-- b) User toggles either Hide button
+	local groupKey = 1;
+	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED do
+		-- Remove and insert
+		table.insert( RESTOCKSHOP_AUCTION_DATA_GROUPS, table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED, groupKey ) );
 	end
 end
 
@@ -1310,7 +1367,7 @@ function RestockShop_AuctionDataGroups_HideOverstockStacks()
 	-- Run this function when:
 		-- a) Auction is won (RestockShop_AuctionDataGroups_OnHandQtyChanged)
 		-- b) Inside RestockShop_ScanAuctionQueue() just before RestockShop_ScanComplete()
-		-- c) User toggles on Hide button
+		-- c) User toggles either Hide button
 	local groupKey = 1;
 	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS do
 		local group = RESTOCKSHOP_AUCTION_DATA_GROUPS[groupKey];
@@ -1318,7 +1375,7 @@ function RestockShop_AuctionDataGroups_HideOverstockStacks()
 		--
 		if afterPurchaseRestockPct > ( 100 + RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacksPct"] ) then
 			-- Remove and insert
-			table.insert( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN, table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS, groupKey ) );
+			table.insert( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK, table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS, groupKey ) );
 		else
 			-- Increment to try the next group
 			groupKey = groupKey + 1;
@@ -1330,11 +1387,11 @@ end
 function RestockShop_AuctionDataGroups_ShowOverstockStacks()
 	-- Run this function when:
 		-- a) Auction is won (RestockShop_AuctionDataGroups_OnHandQtyChanged)
-		-- b) User toggles off Hide button
+		-- b) User toggles either Hide button
 	local groupKey = 1;
-	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN do
+	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK do
 		-- Remove and insert
-		table.insert( RESTOCKSHOP_AUCTION_DATA_GROUPS, table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN, groupKey ) );
+		table.insert( RESTOCKSHOP_AUCTION_DATA_GROUPS, table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK, groupKey ) );
 	end
 end
 
@@ -1363,12 +1420,23 @@ function RestockShop_AuctionDataGroups_RemoveItemId( itemId )
 			groupKey = groupKey + 1;
 		end
 	end
-	-- Hidden
+	-- Overpriced
 	local groupKey = 1;
-	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN do
-		if RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN[groupKey]["itemId"] == itemId then
+	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED do
+		if RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED[groupKey]["itemId"] == itemId then
 			-- Match, remove group
-			table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN, groupKey );
+			table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED, groupKey );
+		else
+			-- Not a match, increment to try next group
+			groupKey = groupKey + 1;
+		end
+	end
+	-- Overstock
+	local groupKey = 1;
+	while groupKey <= #RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK do
+		if RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK[groupKey]["itemId"] == itemId then
+			-- Match, remove group
+			table.remove( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK, groupKey );
 		else
 			-- Not a match, increment to try next group
 			groupKey = groupKey + 1;
@@ -1382,14 +1450,14 @@ function RestockShop_AuctionDataGroups_Sort()
 	table.sort ( RESTOCKSHOP_AUCTION_DATA_GROUPS,
 		function ( item1, item2 )
 			if RESTOCKSHOP_AUCTION_DATA_SORT_ORDER == "ASC" then
-				if RESTOCKSHOP_AUCTION_DATA_SORT_KEY ~= "pctMaxPrice" and item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] == item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] then
-					return item1["pctMaxPrice"] < item2["pctMaxPrice"];
+				if RESTOCKSHOP_AUCTION_DATA_SORT_KEY ~= "pctItemValue" and item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] == item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] then
+					return item1["pctItemValue"] < item2["pctItemValue"];
 				else
 					return item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] < item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY];
 				end
 			elseif RESTOCKSHOP_AUCTION_DATA_SORT_ORDER == "DESC" then
-				if RESTOCKSHOP_AUCTION_DATA_SORT_KEY ~= "pctMaxPrice" and item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] == item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] then
-					return item1["pctMaxPrice"] < item2["pctMaxPrice"];
+				if RESTOCKSHOP_AUCTION_DATA_SORT_KEY ~= "pctItemValue" and item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] == item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] then
+					return item1["pctItemValue"] < item2["pctItemValue"];
 				else
 					return item1[RESTOCKSHOP_AUCTION_DATA_SORT_KEY] > item2[RESTOCKSHOP_AUCTION_DATA_SORT_KEY];
 				end
@@ -1462,6 +1530,7 @@ function RestockShop_ScanAuctionQueue()
 								["itemValue"] = itemInfo["itemValue"],
 								["tsmItemString"] = itemInfo["tsmItemString"],
 								["itemPrice"] = itemInfo["itemPrice"],
+								["pctItemValue"] = itemInfo["pctItemValue"],
 								["pctMaxPrice"] = itemInfo["pctMaxPrice"],
 								["onHandQty"] = itemInfo["onHandQty"],
 								["fullStockQty"] = itemInfo["fullStockQty"],
@@ -1471,6 +1540,10 @@ function RestockShop_ScanAuctionQueue()
 						end
 					end
 				end
+			end
+			--
+			if RESTOCKSHOP_SAVEDVARIABLES["hideOverpricedStacks"] then
+				RestockShop_AuctionDataGroups_HideOverpricedStacks();
 			end
 			--
 			if RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] then
@@ -1567,57 +1640,41 @@ function RestockShop_ScanAuctionPage()
 			local itemValue = TSMAPI:GetItemValue( RESTOCKSHOP_QUERY_ITEM["link"], RESTOCKSHOP_SAVEDVARIABLES["itemValueSrc"] );
 			local itemPrice = math.ceil( buyoutPrice / count );
 			local maxPrice = RestockShop_MaxPrice( itemValue, restockPct, RESTOCKSHOP_QUERY_ITEM["maxPricePct"] );
+			local pctItemValue = ( itemPrice * 100 ) / itemValue;
 			local pctMaxPrice = ( itemPrice * 100 ) / maxPrice;
-			if itemPrice <= maxPrice then
-				if ownerFullName ~= GetUnitName( "player" ) then
-					-- Matching Auction, record info
-					if RESTOCKSHOP_SCAN_TYPE == "SELECT" then
-						-- SELECT match found?
-						if not RESTOCKSHOP_AUCTION_SELECT_FOUND and RESTOCKSHOP_AUCTION_SELECT_AUCTION["name"] == name and RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"] == count and RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemPrice"] == itemPrice then
-							RESTOCKSHOP_AUCTION_SELECT_FOUND = true;
-							RESTOCKSHOP_AUCTION_SELECT_AUCTION["index"] = i;
-							RESTOCKSHOP_AUCTION_SELECT_AUCTION["buyoutPrice"] = buyoutPrice;
-							RESTOCKSHOP_AUCTION_SELECT_AUCTION["ownerFullName"] = ownerFullName;
-							break; -- Not recording any additional data, just stop loop and continue on below to page scan completion checks
-						end
-					else
-						-- Record raw data if not a SELECT scan
-						RESTOCKSHOP_AUCTION_DATA_RAW[itemId][RESTOCKSHOP_QUERY_PAGE][i] = {
-							["restockPct"] = restockPct,
-							["name"] = name,
-							["texture"] = texture,
-							["count"] = count,
-							["quality"] = quality,
-							["itemPrice"] = itemPrice,
-							["buyoutPrice"] = buyoutPrice,
-							["pctMaxPrice"] = pctMaxPrice,
-							["ownerFullName"] = ownerFullName,
-							["itemId"] = itemId,
-							["itemLink"] = RESTOCKSHOP_QUERY_ITEM["link"],
-							["itemValue"] = itemValue,
-							["tsmItemString"] = RESTOCKSHOP_QUERY_ITEM["tsmItemString"],
-							["onHandQty"] = onHandQty,
-							["fullStockQty"] = RESTOCKSHOP_QUERY_ITEM["fullStockQty"],
-							["page"] = RESTOCKSHOP_QUERY_PAGE,
-							["index"] = i,
-						};
+			if ownerFullName ~= GetUnitName( "player" ) then
+				-- Matching Auction, record info
+				if RESTOCKSHOP_SCAN_TYPE == "SELECT" then
+					-- SELECT match found?
+					if not RESTOCKSHOP_AUCTION_SELECT_FOUND and RESTOCKSHOP_AUCTION_SELECT_AUCTION["name"] == name and RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"] == count and RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemPrice"] == itemPrice then
+						RESTOCKSHOP_AUCTION_SELECT_FOUND = true;
+						RESTOCKSHOP_AUCTION_SELECT_AUCTION["index"] = i;
+						RESTOCKSHOP_AUCTION_SELECT_AUCTION["buyoutPrice"] = buyoutPrice;
+						RESTOCKSHOP_AUCTION_SELECT_AUCTION["ownerFullName"] = ownerFullName;
+						break; -- Not recording any additional data, just stop loop and continue on below to page scan completion checks
 					end
-				end
-			elseif ( not incompleteData or ( incompleteData and RESTOCKSHOP_QUERY_BATCH_ATTEMPTS == RESTOCKSHOP_QUERY_MAX_BATCH_ATTEMPTS ) ) and count == RESTOCKSHOP_QUERY_ITEM["maxStack"] then
-				-- Item scan complete, max price exceeded ... maybe ...
-				-- *** <Random Enchantment> *** Only stop at max price if item is NOT randomly enchanted because the alphabetical name sorting throws off the buyout sorting for identical item ID's
-				local _,_,_,_,_,_,_,suffixId = strsplit( ":", string.match( GetAuctionItemLink( "list", i ), "item[%-?%d:]+" ) );
-				if suffixId == "0" then
-					-- Not a <Random Enchantment> item, stop scanning, max price exceeded
-					RESTOCKSHOP_ITEMS[RESTOCKSHOP_QUERY_ITEM["itemId"]]["scanTexture"] = "Ready";
-					RestockShop_StopScanning();
-					if RESTOCKSHOP_SCAN_TYPE == "SELECT" and not RESTOCKSHOP_AUCTION_SELECT_FOUND then
-						print( "RestockShop: " .. string.format( L["%s%sx%d|r for %s per item not found, rescanning item"], RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemLink"], YELLOW_FONT_COLOR_CODE, RESTOCKSHOP_AUCTION_SELECT_AUCTION["count"], TSMAPI:FormatTextMoney( RESTOCKSHOP_AUCTION_SELECT_AUCTION["itemPrice"], "|cffffffff", true ) ) );
-						RestockShop_RescanItem();
-						return; -- Stop function, starting rescan
-					end
-					RestockShop_ScanAuctionQueue(); -- Return to queue
-					return; -- Stop function
+				else
+					-- Record raw data if not a SELECT scan
+					RESTOCKSHOP_AUCTION_DATA_RAW[itemId][RESTOCKSHOP_QUERY_PAGE][i] = {
+						["restockPct"] = restockPct,
+						["name"] = name,
+						["texture"] = texture,
+						["count"] = count,
+						["quality"] = quality,
+						["itemPrice"] = itemPrice,
+						["buyoutPrice"] = buyoutPrice,
+						["pctItemValue"] = pctItemValue,
+						["pctMaxPrice"] = pctMaxPrice,
+						["ownerFullName"] = ownerFullName,
+						["itemId"] = itemId,
+						["itemLink"] = RESTOCKSHOP_QUERY_ITEM["link"],
+						["itemValue"] = itemValue,
+						["tsmItemString"] = RESTOCKSHOP_QUERY_ITEM["tsmItemString"],
+						["onHandQty"] = onHandQty,
+						["fullStockQty"] = RESTOCKSHOP_QUERY_ITEM["fullStockQty"],
+						["page"] = RESTOCKSHOP_QUERY_PAGE,
+						["index"] = i,
+					};
 				end
 			end
 		end
@@ -1656,15 +1713,15 @@ function RestockShop_ScanComplete()
 		RestockShopFrame_FlyoutPanel_ScrollFrame_Update(); -- Update scanTexture and Highlight
 		--
 		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS ) then
-			if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
-				RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+			if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+				RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 			else
 				RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
 			end
 			RestockShopFrame_BuyAllButton:Enable();
 		else
-			if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
-				RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["No additional auctions matched your settings"] );
+			if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+				RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 			else
 				RestockShopFrame_DialogFrame_StatusFrame_Update( L["No auctions were found that matched your settings"] );
 			end
@@ -1692,8 +1749,8 @@ function RestockShop_ScanComplete()
 					RestockShopFrame_ScrollFrame_Entry_OnClick( 1 );
 				else
 					RestockShopFrame_ScrollFrame_Auction_Deselect();
-					if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
-						RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+					if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+						RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 					else
 						RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
 					end
@@ -1701,8 +1758,8 @@ function RestockShop_ScanComplete()
 				end
 			else
 				RestockShopFrame_ScrollFrame_Auction_Deselect();
-				if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
-					RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["No additional auctions matched your settings"] );
+				if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+					RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 				else
 					RestockShopFrame_DialogFrame_StatusFrame_Update( L["No additional auctions matched your settings"] );
 				end
@@ -1756,8 +1813,8 @@ function RestockShop_AfterAuctionWon()
 				NextAuction( 1 );
 			else
 				RestockShopFrame_ScrollFrame_Auction_Deselect();
-				if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
-					RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+				if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+					RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 				else
 					RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
 				end
@@ -1766,8 +1823,8 @@ function RestockShop_AfterAuctionWon()
 		else
 			-- No auctions exist
 			RestockShopFrame_ScrollFrame_Auction_Deselect();
-			if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
-				RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["No additional auctions matched your settings"] );
+			if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+				RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 			else
 				RestockShopFrame_DialogFrame_StatusFrame_Update( L["No additional auctions matched your settings"] );
 			end
@@ -1810,7 +1867,7 @@ end
 
 --
 function RestockShop_AddTooltipData( self, ... )
-	if not RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["shoppingListSettings"] and not RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["itemId"] then return end
+	if ( not RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["shoppingListSettings"] and not RESTOCKSHOP_SAVEDVARIABLES["itemTooltip"]["itemId"] ) or RESTOCKSHOP_TOOLTIP then return end
 	-- Get Item Id
 	local itemName, itemLink = self:GetItem();
 	local itemId = itemLink and tonumber( string.match( itemLink, "item:(%d+):" ) ) or nil;
@@ -1858,6 +1915,13 @@ function RestockShop_AddTooltipData( self, ... )
 	end
 	-- Makes added lines show immediately
 	self:Show();
+	-- Completed
+	RESTOCKSHOP_TOOLTIP = true;
+end
+
+--
+function Restockshop_ClearTooltipData()
+	RESTOCKSHOP_TOOLTIP = nil;
 end
 
 --
@@ -2741,13 +2805,13 @@ f:SetScript( "OnLeave", TruncatedButton_OnLeave );
 fs = f:GetFontString();
 fs:SetJustifyH( "LEFT" );
 fs:SetSize( ( 150 - 28 ), 19 );
--- RestockShopFrame > PctMaxPriceSortButton
-f = CreateFrame( "Button", "$parent_PctMaxPriceSortButton", RestockShopFrame, "AuctionSortButtonTemplate" );
-f:SetText( L["% Max Price"] );
+-- RestockShopFrame > pctItemValueSortButton
+f = CreateFrame( "Button", "$parent_PctItemValueSortButton", RestockShopFrame, "AuctionSortButtonTemplate" );
+f:SetText( L["% Item Value"] );
 f:SetSize( 101, 19 );
 f:SetPoint( "LEFT", "$parent_ItemPriceSortButton", "RIGHT", -2, 0 );
 f:SetScript( "OnClick", function ( self )
-	RestockShopFrame_SortColumn_OnClick( self, "pctMaxPrice" );
+	RestockShopFrame_SortColumn_OnClick( self, "pctItemValue" );
 end );
 f:SetScript( "OnEnter", RestockShop_TruncatedText_OnEnter );
 f:SetScript( "OnLeave", TruncatedButton_OnLeave );
@@ -2805,8 +2869,8 @@ f:SetScript( "OnClick", function ( self )
 		RestockShopFrame_BuyAllButton:Click();
 	else
 		RestockShopFrame_ScrollFrame_Auction_Deselect();
-		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
-			RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 		else
 			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
 		end
@@ -2881,8 +2945,8 @@ f:SetScript( "OnClick", function ( self )
 	if RESTOCKSHOP_BUYALL then
 		RESTOCKSHOP_BUYALL = false;
 		self:SetText( L["Buy All"] );
-		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
-			RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Buy All has been stopped"] .. ". " .. L["Select an auction to buy or click \"Buy All\""] );
+		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["Buy All has been stopped"] .. ". " .. L["Select an auction to buy or click \"Buy All\""] );
 		else
 			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Buy All has been stopped"] .. ". " .. L["Select an auction to buy or click \"Buy All\""] );
 		end
@@ -2911,7 +2975,7 @@ f:SetScript( "OnClick", function ( self )
 		RESTOCKSHOP_QUERY_QUEUE= {};
 		RESTOCKSHOP_AUCTION_DATA_RAW = {};
 		RESTOCKSHOP_AUCTION_DATA_GROUPS = {};
-		RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN = {};
+		RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK = {};
 		RestockShopFrame_ScrollFrame_Auction_Deselect();
 		RestockShopFrame_ScrollFrame_Update();
 		RestockShopFrame_ListStatusFrame:Hide();
@@ -3012,8 +3076,8 @@ for i = 2, 17 do
 	f = CreateFrame( "Button", ( "$parent_ScrollFrame_Entry" .. i ), RestockShopFrame_FlyoutPanel, "RestockShopFrame_FlyoutPanel_ScrollFrame_EntryTemplate" );
 	f:SetPoint( "TOPLEFT", ( "$parent_ScrollFrame_Entry" .. ( i - 1 ) ), "BOTTOMLEFT", 0, -3 );
 end
--- RestockShopFrame > HideOverstockStacksButton
-f = CreateFrame( "Button", "$parent_HideOverstockStacksButton", RestockShopFrame );
+-- RestockShopFrame > HideOverpricedStacksButton
+f = CreateFrame( "Button", "$parent_HideOverpricedStacksButton", RestockShopFrame );
 f:SetSize( 32, 32 );
 f:SetPoint( "TOPRIGHT", "$parent_OnHandSortButton", "BOTTOMLEFT", -6, -7 );
 f:SetNormalTexture( "Interface\\FriendsFrame\\UI-FriendsList-Large-Up" );
@@ -3027,9 +3091,70 @@ f:SetScript( "OnClick", function ( self )
 	--
 	RestockShopFrame_DialogFrame_BuyoutFrame_CancelButton:Click();
 	--
+	RestockShop_AuctionDataGroups_ShowOverpricedStacks();
+	RestockShop_AuctionDataGroups_ShowOverstockStacks();
+	--
+	if RESTOCKSHOP_SAVEDVARIABLES["hideOverpricedStacks"] then
+		-- Show
+		RestockShop_AuctionDataGroups_Sort();
+		RESTOCKSHOP_SAVEDVARIABLES["hideOverpricedStacks"] = false;
+		self:UnlockHighlight();
+	else
+		-- Hide
+		RestockShop_AuctionDataGroups_HideOverpricedStacks();
+		RESTOCKSHOP_SAVEDVARIABLES["hideOverpricedStacks"] = true;
+		self:LockHighlight();
+	end
+	--
+	if RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] then
+		RestockShop_AuctionDataGroups_HideOverstockStacks();
+	end
+	--
+	if next( RESTOCKSHOP_AUCTION_DATA_GROUPS ) then
+		-- Auctions shown
+		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+		else
+			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
+		end
+		RestockShopFrame_BuyAllButton:Enable();
+	elseif next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) then
+		-- Auctions hidden
+		RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
+		RestockShopFrame_BuyAllButton:Disable();
+	elseif next( RESTOCKSHOP_ITEMS ) then
+		-- Auctions scanned, but none available
+		RestockShopFrame_DialogFrame_StatusFrame_Update( L["No additional auctions matched your settings"] );
+		RestockShopFrame_BuyAllButton:Disable();
+	end
+	RestockShopFrame_ScrollFrame:SetVerticalScroll( 0 );
+	RestockShopFrame_ScrollFrame_Update();
+end );
+f:SetScript( "OnEnter", function ( self )
+	GameTooltip:SetOwner( self, "ANCHOR_BOTTOMRIGHT" );
+	GameTooltip:SetText( string.format( L["%sHide Overpriced Stacks|r\n\nHides auctions whose %% Item Value exceeds\nthe current max price: %sLow|r, %sNorm|r, or %sFull|r %%"], RED_FONT_COLOR_CODE, RESTOCKSHOP_LOW_COLOR_CODE, RESTOCKSHOP_NORM_COLOR_CODE, RESTOCKSHOP_FULL_COLOR_CODE ) );
+end );
+f:SetScript( "OnLeave", GameTooltip_Hide );
+-- RestockShopFrame > HideOverstockStacksButton
+f = CreateFrame( "Button", "$parent_HideOverstockStacksButton", RestockShopFrame );
+f:SetSize( 32, 32 );
+f:SetPoint( "TOP", "$parent_HideOverpricedStacksButton", "BOTTOM", 0, -3 );
+f:SetNormalTexture( "Interface\\FriendsFrame\\UI-FriendsList-Large-Up" );
+f:SetPushedTexture( "Interface\\FriendsFrame\\UI-FriendsList-Large-Down" );
+f:SetHighlightTexture( "Interface\\FriendsFrame\\UI-FriendsList-Highlight", "ADD" );
+f:SetScript( "OnClick", function ( self )
+	if RESTOCKSHOP_SCANNING then
+		print( "RestockShop: " .. L["Selection ignored, busy scanning"] );
+		return; -- Stop function
+	end
+	--
+	RestockShopFrame_DialogFrame_BuyoutFrame_CancelButton:Click();
+	--
+	RestockShop_AuctionDataGroups_ShowOverpricedStacks();
+	RestockShop_AuctionDataGroups_ShowOverstockStacks();
+	--
 	if RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] then
 		-- Show
-		RestockShop_AuctionDataGroups_ShowOverstockStacks();
 		RestockShop_AuctionDataGroups_Sort();
 		RESTOCKSHOP_SAVEDVARIABLES["hideOverstockStacks"] = false;
 		self:UnlockHighlight();
@@ -3040,17 +3165,21 @@ f:SetScript( "OnClick", function ( self )
 		self:LockHighlight();
 	end
 	--
+	if RESTOCKSHOP_SAVEDVARIABLES["hideOverpricedStacks"] then
+		RestockShop_AuctionDataGroups_HideOverpricedStacks();
+	end
+	--
 	if next( RESTOCKSHOP_AUCTION_DATA_GROUPS ) then
 		-- Auctions shown
-		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
-			RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+		if next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) then
+			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 		else
 			RestockShopFrame_DialogFrame_StatusFrame_Update( L["Select an auction to buy or click \"Buy All\""] );
 		end
 		RestockShopFrame_BuyAllButton:Enable();
-	elseif next( RESTOCKSHOP_AUCTION_DATA_GROUPS_HIDDEN ) then
+	elseif next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERSTOCK ) or next( RESTOCKSHOP_AUCTION_DATA_GROUPS_OVERPRICED ) then
 		-- Auctions hidden
-		RestockShopFrame_DialogFrame_StatusFrame_Update( string.format( L["%sHidden auctions available.|r"], RESTOCKSHOP_FULL_COLOR_CODE ) .. " " .. L["No additional auctions matched your settings"] );
+		RestockShopFrame_DialogFrame_StatusFrame_Update( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 		RestockShopFrame_BuyAllButton:Disable();
 	elseif next( RESTOCKSHOP_ITEMS ) then
 		-- Auctions scanned, but none available

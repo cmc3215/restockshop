@@ -1,3 +1,10 @@
+**2.8**
+* Release date: 02/27/2015
+* New button added on the RestockShop auction tab to toggle hiding auctions that exceed your max price, previously they were excluded during scanning
+* "% Max Price" column now "% Item Value", auctions that exceed your max price will display their percentage in red
+* Bug fix, tooltips for profession patterns with an item embedded were displaying RestockShop's info twice
+* Removed localization for ptBR and zhCN, phrases used will continue to be listed in English inside the localization file and on the CurseForge project page for ease in translation
+
 **2.7**
 * Release date: 02/24/2015
 * TOC updated for patch 6.1
