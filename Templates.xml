@@ -295,7 +295,7 @@
 					</Frame>
 				</Frames>
 			</Frame>
-			<!-- [% Max Price] -->
+			<!-- [% Item Value] -->
 			<Frame>
 				<Size>
 					<AbsDimension x="100" y="16"/>
@@ -309,7 +309,7 @@
 				</Anchors>
 				<Layers>
 					<Layer level="BACKGROUND">
-						<FontString name="$parent_PctMaxPrice" inherits="GameFontHighlightSmall" justifyH="CENTER" setAllPoints="true" text=""/>
+						<FontString name="$parent_PctItemValue" inherits="GameFontHighlightSmall" justifyH="CENTER" setAllPoints="true" text=""/>
 					</Layer>
 				</Layers>
 			</Frame>
