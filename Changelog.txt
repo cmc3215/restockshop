@@ -1,3 +1,18 @@
+**2.9**
+* Release date: 04/22/2015
+* Bug fix, LUA error on RestockShop AH tab if On Hand Tracking was set to Current Character and Include Guild Bank(s) checked specifically when the player is either a) not in a guild or b) ignoring their guild in TSM_ItemTracker settings
+* The options panel, formerly part of the Interface > Addons menu, has been redesigned and is now a standalone movable frame with tabs for better usability
+* All options changed are now saved and applied instantly, formerly you had to click "Okay", which closed the options panel in order to save
+* Shopping Lists in the new options frame now display additional data: On Hand and Item Value
+* Several formerly global settings are now shopping list specific to allow each list to act more like a shopping profile, these settings are also now displayed at the top of the RestockShop Auction House tab
+* Copy List will also copy the new individual list settings
+* New button added on options frame Shopping List tab, "Apply To All", which allows the now individual shopping list settings of one list to be applied to all lists
+* Default Low Stock % now 50%, up to from 30%
+* New option on options frame More Options tab, "Remember Options Frame Position"
+* New options frame tab "Help"
+* New slash command, /rs help, opens the new options frame tab "Help"
+* Localization has been put on hold for now, phrases have been removed
+
 **2.8**
 * Release date: 02/27/2015
 * New button added on the RestockShop auction tab to toggle hiding auctions that exceed your max price, previously they were excluded during scanning
