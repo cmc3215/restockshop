@@ -157,10 +157,10 @@ NS.options.cfg = {
 									print( "RestockShop: " .. string.format( L["Item not found, check your %sItem ID|r"], NORMAL_FONT_COLOR_CODE ) );
 								end
 							end
-							-- Full Stock Qty
+							-- Full Stock
 							if fullStockQty < 1 then
 								submitError = true;
-								print( "RestockShop: " .. string.format( L["%sFull Stock Qty|r cannot be empty"], NORMAL_FONT_COLOR_CODE ) );
+								print( "RestockShop: " .. string.format( L["%sFull Stock|r cannot be empty"], NORMAL_FONT_COLOR_CODE ) );
 							end
 							-- Low %
 							if lowStockPrice < 1 then
