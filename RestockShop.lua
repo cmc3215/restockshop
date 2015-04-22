@@ -1068,8 +1068,8 @@ function RestockShop_ScanAuctionQueue()
 		RestockShop_StopScanning();
 		RestockShop_ScanAuctionQueue();
 	elseif NS.query.item["maxPricePct"]["full"] == 0 and RestockShop_QOH( NS.query.item["tsmItemString"] ) >= NS.query.item["fullStockQty"] then
-		-- Skipping: Full Stock Qty reached and no Full price set
-		--print( "RestockShop: " .. string.format( L["Skipping %s: %sFull Stock Qty|r reached and no %sFull|r price set"], NS.query.item["link"], NORMAL_FONT_COLOR_CODE, NS.colorCode.full ) );
+		-- Skipping: Full Stock reached and no Full price set
+		--print( "RestockShop: " .. string.format( L["Skipping %s: %sFull Stock|r reached and no %sFull|r price set"], NS.query.item["link"], NORMAL_FONT_COLOR_CODE, NS.colorCode.full ) );
 		NS.items[NS.query.item["itemId"]]["scanTexture"] = "NotReady";
 		RestockShop_StopScanning();
 		RestockShop_ScanAuctionQueue();
@@ -1324,9 +1324,9 @@ function RestockShop_AfterAuctionWon()
 			RestockShopFrame_BuyAllButton_Reset();
 		end
 	end
-	-- Full Stock Qty notice
+	-- Full Stock notice
 	if NS.auction.data.groups.visible[NS.auction.selected.groupKey]["onHandQty"] < NS.auction.selected.auction["fullStockQty"] and ( NS.auction.data.groups.visible[NS.auction.selected.groupKey]["onHandQty"] + NS.auction.selected.auction["count"] ) >= NS.auction.selected.auction["fullStockQty"] then
-		print( "RestockShop: " .. string.format( L["You reached the %sFull Stock Qty|r of %s%d|r on %s"], NORMAL_FONT_COLOR_CODE, NS.colorCode.full, NS.auction.selected.auction["fullStockQty"], NS.auction.selected.auction["itemLink"] ) );
+		print( "RestockShop: " .. string.format( L["You reached the %sFull Stock|r of %s%d|r on %s"], NORMAL_FONT_COLOR_CODE, NS.colorCode.full, NS.auction.selected.auction["fullStockQty"], NS.auction.selected.auction["itemLink"] ) );
 	end
 	--
 	RestockShopFrame_ShopButton:Enable();
@@ -2088,7 +2088,7 @@ f:SetScript( "OnClick", function ( self )
 end );
 f:SetScript( "OnEnter", function ( self )
 	GameTooltip:SetOwner( self, "ANCHOR_BOTTOMRIGHT" );
-	GameTooltip:SetText( string.format( L["%sHide Overstock Stacks|r\n\nHides auctions that when purchased would cause you\nto exceed your \"Full Stock Qty\" by more than %s%s%%|r"], NS.colorCode.full, NS.colorCode.full, NS.db["shoppingLists"][NS.currentListKey]["hideOverstockStacksPct"] ) );
+	GameTooltip:SetText( string.format( L["%sHide Overstock Stacks|r\n\nHides auctions that when purchased would cause you\nto exceed your \"Full Stock\" by more than %s%s%%|r"], NS.colorCode.full, NS.colorCode.full, NS.db["shoppingLists"][NS.currentListKey]["hideOverstockStacksPct"] ) );
 end );
 f:SetScript( "OnLeave", GameTooltip_Hide );
 --------------------------------------------------------------------------------------------------------------------------------------------
