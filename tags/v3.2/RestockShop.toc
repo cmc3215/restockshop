@@ -1,0 +1,19 @@
+﻿## Interface: 60100
+## Title: RestockShop
+## Version: 3.2
+## Author: Clinton Caldwell
+## Notes: A fast shopping list tool to restock items at your ideal quantity and price.
+## SavedVariables: RESTOCKSHOP_SAVEDVARIABLES
+## SavedVariablesPerCharacter: RESTOCKSHOP_SAVEDVARIABLESPERCHARACTER
+## Dependencies: TradeSkillMaster,TradeSkillMaster_ItemTracker
+## OptionalDeps: Auc-Advanced,Auctionator,TradeSkillMaster_AuctionDB,TradeSkillMaster_WoWuction
+
+..\Blizzard_AuctionUI\Blizzard_AuctionUITemplates.xml
+Templates.xml
+
+Localization.lua
+RestockShop.lua
+
+options\functions.lua
+options\config.lua
+options\create.lua

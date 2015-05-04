@@ -1,0 +1,511 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+..\..\FrameXML\UI.xsd">
+
+	<!-- ### RestockShopInterfaceOptionsPanelShoppingLists_ScrollFrame_EntryTemplate ### -->
+	<Button name="RestockShopInterfaceOptionsPanelShoppingLists_ScrollFrame_EntryTemplate" hidden="false" virtual="true">
+		<Size>
+			<AbsDimension x="785" y="16"/><!-- All elements combined w/offsets add up to 805 -->
+		</Size>
+		<!-- Frames -->
+		<Frames>
+			<!-- [Item ID] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="65" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_ItemId" inherits="GameFontHighlight" justifyH="CENTER" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- Item Icon Texture before [Name] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="16" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_ItemId" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="7" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<Texture name="$parent_IconTexture"/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Name] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="188" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_IconTexture" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="4" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_Name" inherits="GameFontHighlight" justifyH="LEFT" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [On Hand] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="80" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_Name" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_OnHand" inherits="GameFontHighlight" justifyH="CENTER" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Full Stock Qty] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="80" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_OnHand" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_FullStockQty" inherits="GameFontHighlight" justifyH="CENTER" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Low Stock Price] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="55" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_FullStockQty" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_LowStockPrice" inherits="GameFontHighlight" justifyH="CENTER" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Normal Stock Price] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="55" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_LowStockPrice" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_NormalStockPrice" inherits="GameFontHighlight" justifyH="CENTER" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Full Stock Price] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="55" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_NormalStockPrice" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_FullStockPrice" inherits="GameFontHighlight" justifyH="CENTER" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Item Value] w/Small Money Frame -->
+			<Frame name="$parent_ItemValue">
+				<Size>
+					<AbsDimension x="150" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_FullStockPrice" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Frames>
+					<Frame name="$parent_SmallMoneyFrame" inherits="SmallMoneyFrameTemplate">
+						<Size>
+							<AbsDimension x="137" y="16"/>
+						</Size>
+						<Anchors>
+							<Anchor point="RIGHT">
+								<Offset>
+									<AbsDimension x="7" y="0"/>
+								</Offset>
+							</Anchor>
+						</Anchors>
+						<Scripts>
+							<OnLoad>
+								SmallMoneyFrame_OnLoad( self );
+								MoneyFrame_SetType( self, "AUCTION" );
+							</OnLoad>
+						</Scripts>
+					</Frame>
+				</Frames>
+			</Frame>
+			<!-- [Delete/Button] -->
+			<Frame name="$parent_Delete">
+				<Size>
+					<AbsDimension x="30" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_ItemValue" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Frames>
+					<Button name="$parentButton">
+						<Size>
+							<AbsDimension x="16" y="16"/>
+						</Size>
+						<Anchors>
+							<Anchor point="CENTER"/>
+						</Anchors>
+						<NormalTexture file="Interface\Buttons\UI-MinusButton-UP"/>
+						<PushedTexture file="Interface\Buttons\UI-MinusButton-Down"/>
+						<HighlightTexture file="Interface\Buttons\UI-PlusButton-Hilight" alphaMode="ADD"/>
+						<Scripts>
+							<OnEnter>
+								self:GetParent():GetParent():LockHighlight();
+							</OnEnter>
+							<OnLeave>
+								self:GetParent():GetParent():UnlockHighlight();
+							</OnLeave>
+						</Scripts>
+					</Button>
+				</Frames>
+			</Frame>
+		</Frames>
+		<!-- HighlightTexture -->
+		<HighlightTexture name="$parentHighlight" file="Interface\HelpFrame\HelpFrameButton-Highlight" alphaMode="ADD">
+			<TexCoords left="0" right="1.0" top="0" bottom="0.578125"/>
+		</HighlightTexture>
+	</Button>
+
+	<!-- ### RestockShopFrame_ScrollFrame_EntryTemplate ### -->
+	<Button name="RestockShopFrame_ScrollFrame_EntryTemplate" hidden="false" virtual="true">
+		<Size>
+			<AbsDimension x="733" y="16"/><!-- All elements combined w/offsets add up to 733 -->
+		</Size>
+		<!-- Frames -->
+		<Frames>
+			<!-- [On Hand] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="80" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_OnHand" inherits="GameFontHighlightSmall" justifyH="CENTER" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Restock] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="80" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_OnHand" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_Restock" inherits="GameFontHighlightSmall" justifyH="CENTER" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- Item Icon Texture before [Name] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="16" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_Restock" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="7" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<Texture name="$parent_IconTexture"/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Name] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="188" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_IconTexture" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="4" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_Name" inherits="GameFontHighlightSmall" justifyH="LEFT" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Stack Size] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="108" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_Name" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_Stacks" inherits="GameFontHighlightSmall" justifyH="CENTER" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Item Price] w/Small Money Frame -->
+			<Frame name="$parent_ItemPrice">
+				<Size>
+					<AbsDimension x="150" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_Stacks" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Frames>
+					<Frame name="$parent_SmallMoneyFrame" inherits="SmallMoneyFrameTemplate">
+						<Size>
+							<AbsDimension x="137" y="16"/>
+						</Size>
+						<Anchors>
+							<Anchor point="RIGHT">
+								<Offset>
+									<AbsDimension x="7" y="0"/>
+								</Offset>
+							</Anchor>
+						</Anchors>
+						<Scripts>
+							<OnLoad>
+								SmallMoneyFrame_OnLoad( self );
+								MoneyFrame_SetType( self, "AUCTION" );
+							</OnLoad>
+						</Scripts>
+					</Frame>
+				</Frames>
+			</Frame>
+			<!-- [% Item Value] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="100" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parent_ItemPrice" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_PctItemValue" inherits="GameFontHighlightSmall" justifyH="CENTER" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+		</Frames>
+		<!-- HighlightTexture -->
+		<HighlightTexture name="$parentHighlight" file="Interface\HelpFrame\HelpFrameButton-Highlight" alphaMode="ADD">
+			<TexCoords left="0" right="1.0" top="0" bottom="0.578125"/>
+		</HighlightTexture>
+	</Button>
+
+	<!-- ### RestockShopFrame_FlyoutPanel_ScrollFrame_EntryTemplate ### -->
+	<Button name="RestockShopFrame_FlyoutPanel_ScrollFrame_EntryTemplate" hidden="false" virtual="true">
+		<Size>
+			<AbsDimension x="219" y="16"/>
+		</Size>
+		<!-- Frames -->
+		<Frames>
+			<!-- Item Icon Texture before [Name] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="16" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT">
+						<Offset>
+							<AbsDimension x="4" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<Texture name="$parent_IconTexture"/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Name] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="130" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT">
+						<Offset>
+							<AbsDimension x="24" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_Name" inherits="GameFontHighlightSmall" justifyH="LEFT" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [Restock Status] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="45" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT">
+						<Offset>
+							<AbsDimension x="154" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<FontString name="$parent_RestockStatus" inherits="GameFontHighlightSmall" justifyH="CENTER" setAllPoints="true" text=""/>
+					</Layer>
+				</Layers>
+			</Frame>
+			<!-- [ScanTexture] -->
+			<Frame>
+				<Size>
+					<AbsDimension x="16" y="16"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT">
+						<Offset>
+							<AbsDimension x="199" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<Texture name="$parent_ScanTexture"/>
+					</Layer>
+				</Layers>
+			</Frame>
+		</Frames>
+		<!-- HighlightTexture -->
+		<HighlightTexture name="$parentHighlight" file="Interface\HelpFrame\HelpFrameButton-Highlight" alphaMode="ADD">
+			<TexCoords left="0" right="1.0" top="0" bottom="0.578125"/>
+		</HighlightTexture>
+	</Button>
+
+	<Button name="RestockShopColumnHeaderButtonTemplate" virtual="true">
+		<Layers>
+			<Layer level="BACKGROUND">
+				<Texture name="$parentLeft" file="Interface\FriendsFrame\WhoFrame-ColumnTabs">
+					<Size>
+						<AbsDimension x="5" y="19"/>
+					</Size>
+					<Anchors>
+						<Anchor point="TOPLEFT"/>
+					</Anchors>
+					<TexCoords left="0" right="0.078125" top="0" bottom="0.59375"/>
+				</Texture>
+				<Texture name="$parentRight" file="Interface\FriendsFrame\WhoFrame-ColumnTabs">
+					<Size>
+						<AbsDimension x="4" y="19"/>
+					</Size>
+					<Anchors>
+						<Anchor point="TOPRIGHT"/>
+					</Anchors>
+					<TexCoords left="0.90625" right="0.96875" top="0" bottom="0.59375"/>
+				</Texture>
+				<Texture name="$parentMiddle" file="Interface\FriendsFrame\WhoFrame-ColumnTabs">
+					<Size>
+						<AbsDimension x="10" y="19"/>
+					</Size>
+					<Anchors>
+						<Anchor point="LEFT" relativeTo="$parentLeft" relativePoint="RIGHT"/>
+						<Anchor point="RIGHT" relativeTo="$parentRight" relativePoint="LEFT"/>
+					</Anchors>
+					<TexCoords left="0.078125" right="0.90625" top="0" bottom="0.59375"/>
+				</Texture>
+			</Layer>
+		</Layers>
+		<ButtonText name="$parentText" justifyH="LEFT">
+			<Anchors>
+				<Anchor point="LEFT"/>
+			</Anchors>
+		</ButtonText>
+		<NormalFont style="GameFontNormal"/>
+	</Button>
+
+</Ui>
