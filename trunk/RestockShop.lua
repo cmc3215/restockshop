@@ -234,6 +234,10 @@ function RestockShop_Upgrade()
 		NS.db["hideOverstockStacksPct"] = nil;
 	end
 	--
+	if version < 3.1 then
+		NS.db["rememberOptionsFramePosition"] = vars["rememberOptionsFramePosition"];
+	end
+	--
 	print( "RestockShop: " .. string.format( L["Upgraded version %s to %s"], version, NS.version ) );
 	NS.db["version"] = NS.version;
 end
@@ -253,17 +257,17 @@ end
 function RestockShop_OnAddonLoaded() -- ADDON_LOADED
 	if IsAddOnLoaded( "RestockShop" ) then
 		if not NS.loaded then
+			-- Set Default SavedVariables
+			if not RESTOCKSHOP_SAVEDVARIABLES then
+				RESTOCKSHOP_SAVEDVARIABLES = RestockShop_DefaultSavedVariables();
+			end
+			-- Set Default SavedVariablesPerCharacter
+			if not RESTOCKSHOP_SAVEDVARIABLESPERCHARACTER or not RESTOCKSHOP_SAVEDVARIABLESPERCHARACTER["version"] then
+				RESTOCKSHOP_SAVEDVARIABLESPERCHARACTER = RestockShop_DefaultSavedVariablesPerCharacter();
+			end
 			-- Localize SavedVariables
 			NS.db = RESTOCKSHOP_SAVEDVARIABLES;
 			NS.dbpc = RESTOCKSHOP_SAVEDVARIABLESPERCHARACTER;
-			-- Set Default SavedVariables
-			if not NS.db then
-				NS.db = RestockShop_DefaultSavedVariables();
-			end
-			-- Set Default SavedVariablesPerCharacter
-			if not NS.dbpc or not NS.dbpc["version"] then
-				NS.dbpc = RestockShop_DefaultSavedVariablesPerCharacter();
-			end
 			-- Upgrade if old version
 			if NS.db["version"] < NS.version then
 				RestockShop_Upgrade();

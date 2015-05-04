@@ -21,8 +21,9 @@ NS.options.cfg = {
 			MainFrame:SetPoint( unpack( NS.db["optionsFramePosition"] ) );
 		end,
 		onHide		= function( MainFrame )
-			if NS.db["rememberOptionsFramePosition"] then
-				NS.db["optionsFramePosition"] = { MainFrame:GetPoint() };
+			local pos = { MainFrame:GetPoint() };
+			if NS.db["rememberOptionsFramePosition"] and type( pos[2] ) ~= "table" then -- Filter out first time positioning garbage table info
+				NS.db["optionsFramePosition"] = pos;
 			end
 		end,
 	},
