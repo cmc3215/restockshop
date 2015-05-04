@@ -1,7 +1,10 @@
+**3.2**
+* Release date: 05/04/2015
+* Bug fix, new options frame position was being corrupted when saved without being moved, caused LUA error when attempting to reopen, frame position will reset to CENTER once on upgrade as part of fix
+
 **3.1**
 * Release date: 05/04/2015
 * Bug fix, new RestockShop users were unable to save settings between sessions, upgrade users unaffected
-* Bug fix, new options frame position was being corrupted when saved without being moved, caused LUA error when attempting to reopen
 
 **3.0**
 * Release date: 04/22/2015
