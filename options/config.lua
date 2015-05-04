@@ -947,7 +947,7 @@ NS.options.cfg = {
 			end,
 		},
 		{
-			-- General Options
+			-- More Options
 			mainFrameTitle	= NS.title,
 			tabText			= "More Options",
 			init			= function( subFrame )
