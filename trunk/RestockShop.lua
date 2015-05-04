@@ -235,7 +235,7 @@ function RestockShop_Upgrade()
 	end
 	--
 	if version < 3.1 then
-		NS.db["rememberOptionsFramePosition"] = vars["rememberOptionsFramePosition"];
+		NS.db["optionsFramePosition"] = vars["optionsFramePosition"];
 	end
 	--
 	print( "RestockShop: " .. string.format( L["Upgraded version %s to %s"], version, NS.version ) );
