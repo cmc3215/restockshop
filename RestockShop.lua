@@ -233,8 +233,8 @@ function RestockShop_Upgrade()
 		NS.db["qohGuilds"] = nil;
 		NS.db["hideOverstockStacksPct"] = nil;
 	end
-	--
-	if version < 3.1 then
+	-- 3.2
+	if version < 3.2 then
 		NS.db["optionsFramePosition"] = vars["optionsFramePosition"];
 	end
 	--
@@ -481,7 +481,8 @@ function RestockShopFrame_Reset( flyoutPanelEntryClick )
 	RestockShopFrame_FlyoutPanel_ScrollFrame_Update();
 	RestockShopFrame_FlyoutPanel_Footer:SetText( RestockShopFrame_ListSummary() );
 	--
-	StaticPopup_Hide( "RESTOCKSHOP_APPLY_TO_ALL" );
+	StaticPopup_Hide( "RESTOCKSHOP_APPLY_TO_ALL_ITEMS" );
+	StaticPopup_Hide( "RESTOCKSHOP_APPLY_TO_ALL_LISTS" );
 	StaticPopup_Hide( "RESTOCKSHOP_SHOPPINGLISTITEM_DELETE" );
 	StaticPopup_Hide( "RESTOCKSHOP_SHOPPINGLIST_CREATE" );
 	StaticPopup_Hide( "RESTOCKSHOP_SHOPPINGLIST_COPY" );

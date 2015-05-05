@@ -41,9 +41,102 @@ NS.options.cfg = {
 					xOffset = 8,
 					yOffset = -8,
 				} );
+				NS.options.Button( "ApplyToAllItems", subFrame, L["Apply To All Items"], {
+					size = { 249, 22 },
+					hidden = true,
+					relativeTo = "$parentDescription",
+					relativePoint = "BOTTOMLEFT",
+					xOffset = 91,
+					yOffset = -10,
+					tooltip = string.format( L["Updates all items that remain\n%sLow|r >= %sNorm|r >= %sFull|r"], NS.colorCode.low, NS.colorCode.norm, NS.colorCode.full ),
+					onClick = function( self )
+						local sfn = subFrame:GetName();
+						local field, value, desc, applyError;
+						-- Full Stock
+						if _G[sfn .. "FullStockQtyEditbox"]:HasFocus() then
+							field = "Full Stock";
+							value = _G[sfn .. "FullStockQtyEditbox"]:GetNumber();
+							desc = NORMAL_FONT_COLOR_CODE .. "Full Stock|r of " .. NORMAL_FONT_COLOR_CODE .. value .. "|r";
+							if value < 1 then
+								applyError = true;
+								print( "RestockShop: " .. string.format( L["%sFull Stock|r cannot be empty"], NORMAL_FONT_COLOR_CODE ) );
+							end
+						-- Low
+						elseif _G[sfn .. "LowStockPriceEditbox"]:HasFocus() then
+							field = "Low";
+							value = _G[sfn .. "LowStockPriceEditbox"]:GetNumber();
+							desc = NS.colorCode.low .. "Low|r max price of " .. NS.colorCode.low .. value .. "%|r";
+							if value < 1 then
+								applyError = true;
+								print( "RestockShop: " .. string.format( L["%sLow|r cannot be empty"], NS.colorCode.low ) );
+							end
+						-- Norm
+						elseif _G[sfn .. "NormalStockPriceEditbox"]:HasFocus() then
+							field = "Norm";
+							value = _G[sfn .. "NormalStockPriceEditbox"]:GetNumber();
+							desc = NS.colorCode.norm .. "Norm|r max price of " .. NS.colorCode.norm .. value .. "%|r";
+							if value < 1 then
+								applyError = true;
+								print( "RestockShop: " .. string.format( L["%sNorm|r cannot be empty"], NS.colorCode.norm ) );
+							end
+						-- Full
+						elseif _G[sfn .. "FullStockPriceEditbox"]:HasFocus() then
+							field = "Full";
+							value = _G[sfn .. "FullStockPriceEditbox"]:GetNumber();
+							desc = NS.colorCode.full .. "Full|r max price of " .. NS.colorCode.full .. value .. "%|r";
+						end
+						-- Confirm
+						if desc and not applyError then
+							StaticPopup_Show( "RESTOCKSHOP_APPLY_TO_ALL_ITEMS", desc, NS.db["shoppingLists"][NS.currentListKey]["name"], { ["shoppingList"] = NS.currentListKey, ["field"] = field, ["value"] = value } );
+						end
+					end,
+				} );
+				StaticPopupDialogs["RESTOCKSHOP_APPLY_TO_ALL_ITEMS"] = {
+					text = L["Apply %s to all items on %s?"];
+					button1 = YES,
+					button2 = NO,
+					OnAccept = function ( self, data )
+						local itemsUpdated = 0;
+						for i = 1, #NS.db["shoppingLists"][data["shoppingList"]]["items"] do
+							if data["field"] == "Full Stock" then
+								if data["value"] ~= NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["fullStockQty"] then
+									NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["fullStockQty"] = data["value"];
+									itemsUpdated = itemsUpdated + 1;
+								end
+							elseif data["field"] == "Low" then
+								if data["value"] >= NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["maxPricePct"]["normal"]
+								and data["value"] ~= NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["maxPricePct"]["low"] then
+									NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["maxPricePct"]["low"] = data["value"];
+									itemsUpdated = itemsUpdated + 1;
+								end
+							elseif data["field"] == "Norm" then
+								if data["value"] >= NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["maxPricePct"]["full"]
+								and data["value"] <= NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["maxPricePct"]["low"]
+								and data["value"] ~= NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["maxPricePct"]["normal"] then
+									NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["maxPricePct"]["normal"] = data["value"];
+									itemsUpdated = itemsUpdated + 1;
+								end
+							elseif data["field"] == "Full" then
+								if data["value"] <= NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["maxPricePct"]["normal"]
+								and data["value"] ~= NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["maxPricePct"]["full"] then
+									NS.db["shoppingLists"][data["shoppingList"]]["items"][i]["maxPricePct"]["full"] = data["value"];
+									itemsUpdated = itemsUpdated + 1;
+								end
+							end
+						end
+						print( "RestockShop: " .. string.format( L["%d items updated."], itemsUpdated ) );
+						subFrame:Refresh();
+					end,
+					OnCancel = function ( self ) end,
+					showAlert = 1,
+					hideOnEscape = 1,
+					timeout = 0,
+					exclusive = 1,
+					whileDead = 1,
+				};
 				NS.options.TextFrame( "ItemIdLabel", subFrame, L["Item ID"], {
-					xOffset = 22,
-					yOffset = -31,
+					xOffset = -69,
+					yOffset = 1,
 					size = { ( 52 + 10 ), 20 },
 				} );
 				NS.options.TextFrame( "FullStockLabel", subFrame, L["Full Stock"], {
@@ -81,6 +174,11 @@ NS.options.cfg = {
 					relativeTo = "$parentFullStockLabel",
 					onTabPressed = function() _G[subFrame:GetName() .. "LowStockPriceEditbox"]:SetFocus(); end,
 					onEnterPressed = function() _G[subFrame:GetName() .. "SubmitButton"]:Click(); end,
+					onEditFocusGained = function()
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:SetText( L["Full Stock"] .. " - " .. L["Apply To All Items"] );
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:Show();
+					end,
+					onEditFocusLost = function() _G[subFrame:GetName() .. "ApplyToAllItems"]:Hide(); end,
 				} );
 				NS.options.InputBox( "LowStockPriceEditbox", subFrame, {
 					numeric = true,
@@ -89,6 +187,11 @@ NS.options.cfg = {
 					relativeTo = "$parentLowStockPriceLabel",
 					onTabPressed = function() _G[subFrame:GetName() .. "NormalStockPriceEditbox"]:SetFocus(); end,
 					onEnterPressed = function() _G[subFrame:GetName() .. "SubmitButton"]:Click(); end,
+					onEditFocusGained = function()
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:SetText( NS.colorCode.low .. L["Low"] .. "|r - " .. L["Apply To All Items"] );
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:Show();
+					end,
+					onEditFocusLost = function() _G[subFrame:GetName() .. "ApplyToAllItems"]:Hide(); end,
 				} );
 				NS.options.TextFrame( "LowStockPctSymbol", subFrame, "%", {
 					relativeTo = "$parentLowStockPriceEditbox",
@@ -103,6 +206,11 @@ NS.options.cfg = {
 					relativeTo = "$parentNormalStockPriceLabel",
 					onTabPressed = function() _G[subFrame:GetName() .. "FullStockPriceEditbox"]:SetFocus(); end,
 					onEnterPressed = function() _G[subFrame:GetName() .. "SubmitButton"]:Click(); end,
+					onEditFocusGained = function()
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:SetText( NS.colorCode.norm .. L["Norm"] .. "|r - " .. L["Apply To All Items"] );
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:Show();
+					end,
+					onEditFocusLost = function() _G[subFrame:GetName() .. "ApplyToAllItems"]:Hide(); end,
 				} );
 				NS.options.TextFrame( "NormalStockPctSymbol", subFrame, "%", {
 					relativeTo = "$parentNormalStockPriceEditbox",
@@ -117,6 +225,11 @@ NS.options.cfg = {
 					relativeTo = "$parentFullStockPriceLabel",
 					onTabPressed = function() _G[subFrame:GetName() .. "ItemIdEditbox"]:SetFocus(); end,
 					onEnterPressed = function() _G[subFrame:GetName() .. "SubmitButton"]:Click(); end,
+					onEditFocusGained = function()
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:SetText( NS.colorCode.full .. L["Full"] .. "|r - " .. L["Apply To All Items"] );
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:Show();
+					end,
+					onEditFocusLost = function() _G[subFrame:GetName() .. "ApplyToAllItems"]:Hide(); end,
 				} );
 				NS.options.TextFrame( "FullStockPctSymbol", subFrame, "%", {
 					relativeTo = "$parentFullStockPriceEditbox",
@@ -358,7 +471,7 @@ NS.options.cfg = {
 					end,
 					width = 49,
 				} );
-				NS.options.Button( "ApplyToAll", OptionsFrame, L["Apply To All"], {
+				NS.options.Button( "ApplyToAllLists", OptionsFrame, L["Apply To All"], {
 					tooltip = L["Apply these settings\nto all shopping lists."],
 					size = { 96, 22 },
 					anchor = "BOTTOMRIGHT",
@@ -367,10 +480,10 @@ NS.options.cfg = {
 					xOffset = -6,
 					yOffset = 6,
 					onClick = function()
-						StaticPopup_Show( "RESTOCKSHOP_APPLY_TO_ALL", NS.db["shoppingLists"][NS.currentListKey]["name"], nil, { ["shoppingList"] = NS.currentListKey } );
+						StaticPopup_Show( "RESTOCKSHOP_APPLY_TO_ALL_LISTS", NS.db["shoppingLists"][NS.currentListKey]["name"], nil, { ["shoppingList"] = NS.currentListKey } );
 					end,
 				} );
-				StaticPopupDialogs["RESTOCKSHOP_APPLY_TO_ALL"] = {
+				StaticPopupDialogs["RESTOCKSHOP_APPLY_TO_ALL_LISTS"] = {
 					text = L["Apply settings from %s to all lists?"];
 					button1 = YES,
 					button2 = NO,
