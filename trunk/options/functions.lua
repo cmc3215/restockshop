@@ -58,6 +58,12 @@ NS.options.InputBox = function( name, parent, set  )
 	if set.onEnterPressed then
 		f:SetScript( "OnEnterPressed", set.onEnterPressed );
 	end
+	if set.onEditFocusGained then
+		f:SetScript( "OnEditFocusGained", set.onEditFocusGained );
+	end
+	if set.onEditFocusLost then
+		f:SetScript( "OnEditFocusLost", set.onEditFocusLost );
+	end
 	f.db = set.db or nil;
 	f.dbpc = set.dbpc or nil;
 	return f;
@@ -67,6 +73,9 @@ end
 NS.options.Button = function( name, parent, text, set )
 	set.relativeTo = set.relativeTo or lastChildName( parent );
 	local f = CreateFrame( "Button", "$parent" .. name, parent, set.template or "UIPanelButtonTemplate" );
+	if set.hidden then
+		f:Hide();
+	end
 	if set.size then
 		f:SetSize( set.size[1], set.size[2] );
 	end

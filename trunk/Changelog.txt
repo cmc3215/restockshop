@@ -1,3 +1,7 @@
+**3.3**
+* Release date: 05/05/2015
+* New button added on options frame Shopping List tab, "Apply To All Items", allows updating all items with the individual entered value of either Full Stock, Low, Norm, or Full to help rapidly change large lists
+
 **3.2**
 * Release date: 05/04/2015
 * Bug fix, new options frame position was being corrupted when saved without being moved, caused LUA error when attempting to reopen, frame position will reset to CENTER once on upgrade as part of fix
