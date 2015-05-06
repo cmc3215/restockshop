@@ -27,7 +27,7 @@
 				</Layers>
 			</Frame>
 			<!-- Item Icon Texture before [Name] -->
-			<Frame>
+			<Button name="$parent_IconTexture">
 				<Size>
 					<AbsDimension x="16" y="16"/>
 				</Size>
@@ -38,12 +38,7 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<Layers>
-					<Layer level="ARTWORK">
-						<Texture name="$parent_IconTexture"/>
-					</Layer>
-				</Layers>
-			</Frame>
+			</Button>
 			<!-- [Name] -->
 			<Frame>
 				<Size>
@@ -270,7 +265,7 @@
 				</Layers>
 			</Frame>
 			<!-- Item Icon Texture before [Name] -->
-			<Frame>
+			<Button name="$parent_IconTexture">
 				<Size>
 					<AbsDimension x="16" y="16"/>
 				</Size>
@@ -281,12 +276,7 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<Layers>
-					<Layer level="ARTWORK">
-						<Texture name="$parent_IconTexture"/>
-					</Layer>
-				</Layers>
-			</Frame>
+			</Button>
 			<!-- [Name] -->
 			<Frame>
 				<Size>
@@ -389,7 +379,7 @@
 		<!-- Frames -->
 		<Frames>
 			<!-- Item Icon Texture before [Name] -->
-			<Frame>
+			<Button name="$parent_IconTexture">
 				<Size>
 					<AbsDimension x="16" y="16"/>
 				</Size>
@@ -400,12 +390,7 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<Layers>
-					<Layer level="ARTWORK">
-						<Texture name="$parent_IconTexture"/>
-					</Layer>
-				</Layers>
-			</Frame>
+			</Button>
 			<!-- [Name] -->
 			<Frame>
 				<Size>
