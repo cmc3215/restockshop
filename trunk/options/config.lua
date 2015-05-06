@@ -166,6 +166,16 @@ NS.options.cfg = {
 					relativeTo = "$parentItemIdLabel",
 					onTabPressed = function() _G[subFrame:GetName() .. "FullStockQtyEditbox"]:SetFocus(); end,
 					onEnterPressed = function() _G[subFrame:GetName() .. "SubmitButton"]:Click(); end,
+					onEditFocusGained = function( self )
+						self:HighlightText();
+					end,
+					onEditFocusLost = function( self )
+						self:HighlightText( 0, 0 );
+					end,
+					onTextChanged = function( self, userInput )
+						NS.editItemId = _G[subFrame:GetName() .. "ItemIdEditbox"]:GetNumber();
+						_G[subFrame:GetName() .. "ScrollFrame"]:Update();
+					end,
 				} );
 				NS.options.InputBox( "FullStockQtyEditbox", subFrame, {
 					numeric = true,
@@ -174,11 +184,15 @@ NS.options.cfg = {
 					relativeTo = "$parentFullStockLabel",
 					onTabPressed = function() _G[subFrame:GetName() .. "LowStockPriceEditbox"]:SetFocus(); end,
 					onEnterPressed = function() _G[subFrame:GetName() .. "SubmitButton"]:Click(); end,
-					onEditFocusGained = function()
+					onEditFocusGained = function( self )
+						self:HighlightText();
 						_G[subFrame:GetName() .. "ApplyToAllItems"]:SetText( L["Full Stock"] .. " - " .. L["Apply To All Items"] );
 						_G[subFrame:GetName() .. "ApplyToAllItems"]:Show();
 					end,
-					onEditFocusLost = function() _G[subFrame:GetName() .. "ApplyToAllItems"]:Hide(); end,
+					onEditFocusLost = function( self )
+						self:HighlightText( 0, 0 );
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:Hide();
+					end,
 				} );
 				NS.options.InputBox( "LowStockPriceEditbox", subFrame, {
 					numeric = true,
@@ -187,11 +201,15 @@ NS.options.cfg = {
 					relativeTo = "$parentLowStockPriceLabel",
 					onTabPressed = function() _G[subFrame:GetName() .. "NormalStockPriceEditbox"]:SetFocus(); end,
 					onEnterPressed = function() _G[subFrame:GetName() .. "SubmitButton"]:Click(); end,
-					onEditFocusGained = function()
+					onEditFocusGained = function( self )
+						self:HighlightText();
 						_G[subFrame:GetName() .. "ApplyToAllItems"]:SetText( NS.colorCode.low .. L["Low"] .. "|r - " .. L["Apply To All Items"] );
 						_G[subFrame:GetName() .. "ApplyToAllItems"]:Show();
 					end,
-					onEditFocusLost = function() _G[subFrame:GetName() .. "ApplyToAllItems"]:Hide(); end,
+					onEditFocusLost = function( self )
+						self:HighlightText( 0, 0 );
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:Hide();
+					end,
 				} );
 				NS.options.TextFrame( "LowStockPctSymbol", subFrame, "%", {
 					relativeTo = "$parentLowStockPriceEditbox",
@@ -206,11 +224,15 @@ NS.options.cfg = {
 					relativeTo = "$parentNormalStockPriceLabel",
 					onTabPressed = function() _G[subFrame:GetName() .. "FullStockPriceEditbox"]:SetFocus(); end,
 					onEnterPressed = function() _G[subFrame:GetName() .. "SubmitButton"]:Click(); end,
-					onEditFocusGained = function()
+					onEditFocusGained = function( self )
+						self:HighlightText();
 						_G[subFrame:GetName() .. "ApplyToAllItems"]:SetText( NS.colorCode.norm .. L["Norm"] .. "|r - " .. L["Apply To All Items"] );
 						_G[subFrame:GetName() .. "ApplyToAllItems"]:Show();
 					end,
-					onEditFocusLost = function() _G[subFrame:GetName() .. "ApplyToAllItems"]:Hide(); end,
+					onEditFocusLost = function( self )
+						self:HighlightText( 0, 0 );
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:Hide();
+					end,
 				} );
 				NS.options.TextFrame( "NormalStockPctSymbol", subFrame, "%", {
 					relativeTo = "$parentNormalStockPriceEditbox",
@@ -225,11 +247,15 @@ NS.options.cfg = {
 					relativeTo = "$parentFullStockPriceLabel",
 					onTabPressed = function() _G[subFrame:GetName() .. "ItemIdEditbox"]:SetFocus(); end,
 					onEnterPressed = function() _G[subFrame:GetName() .. "SubmitButton"]:Click(); end,
-					onEditFocusGained = function()
+					onEditFocusGained = function( self )
+						self:HighlightText();
 						_G[subFrame:GetName() .. "ApplyToAllItems"]:SetText( NS.colorCode.full .. L["Full"] .. "|r - " .. L["Apply To All Items"] );
 						_G[subFrame:GetName() .. "ApplyToAllItems"]:Show();
 					end,
-					onEditFocusLost = function() _G[subFrame:GetName() .. "ApplyToAllItems"]:Hide(); end,
+					onEditFocusLost = function( self )
+						self:HighlightText( 0, 0 );
+						_G[subFrame:GetName() .. "ApplyToAllItems"]:Hide();
+					end,
 				} );
 				NS.options.TextFrame( "FullStockPctSymbol", subFrame, "%", {
 					relativeTo = "$parentFullStockPriceEditbox",
@@ -605,7 +631,8 @@ NS.options.cfg = {
 						updateFunction = function( sf )
 							local items = NS.db["shoppingLists"][NS.currentListKey]["items"];
 							local numItems = #items;
-							_G[subFrame.name .. "ItemsNumText"]:SetText( numItems );
+							local sfn = subFrame.name;
+							_G[sfn .. "ItemsNumText"]:SetText( numItems );
 							FauxScrollFrame_Update( sf, numItems, sf.numToDisplay, sf.buttonHeight, nil, nil, nil, nil, nil, nil, sf.alwaysShowScrollBar );
 							for num = 1, sf.numToDisplay do
 								local bn = sf.buttonName .. num; -- button name
@@ -613,10 +640,28 @@ NS.options.cfg = {
 								local k = FauxScrollFrame_GetOffset( sf ) + num; -- key
 								b:UnlockHighlight();
 								if k <= numItems then
+									local OnClick = function()
+										_G[sfn .. "ItemIdEditbox"]:SetNumber( NS.db["shoppingLists"][NS.currentListKey]["items"][k]["itemId"] );
+										_G[sfn .. "FullStockQtyEditbox"]:SetNumber( NS.db["shoppingLists"][NS.currentListKey]["items"][k]["fullStockQty"] );
+										_G[sfn .. "LowStockPriceEditbox"]:SetNumber( NS.db["shoppingLists"][NS.currentListKey]["items"][k]["maxPricePct"]["low"] );
+										_G[sfn .. "NormalStockPriceEditbox"]:SetNumber( NS.db["shoppingLists"][NS.currentListKey]["items"][k]["maxPricePct"]["normal"] );
+										_G[sfn .. "FullStockPriceEditbox"]:SetNumber( NS.db["shoppingLists"][NS.currentListKey]["items"][k]["maxPricePct"]["full"] );
+										_G[sfn .. "ItemIdEditbox"]:ClearFocus();
+										_G[sfn .. "ItemIdEditbox"]:SetFocus();
+									end
+									local IsHighlightLocked = function()
+										if NS.editItemId == NS.db["shoppingLists"][NS.currentListKey]["items"][k]["itemId"] then
+											return true;
+										else
+											return false;
+										end
+									end
+									b:SetScript( "OnClick", OnClick );
 									_G[bn .. "_ItemId"]:SetText( items[k]["itemId"] );
-									_G[bn .. "_IconTexture"]:SetTexture( items[k]["texture"] );
-									_G[bn .. "_IconTexture"]:GetParent():SetScript( "OnEnter", function() GameTooltip:SetOwner( _G[bn .. "_IconTexture"]:GetParent(), "ANCHOR_RIGHT" ); GameTooltip:SetHyperlink( items[k]["link"] ); end );
-									_G[bn .. "_IconTexture"]:GetParent():SetScript( "OnLeave", GameTooltip_Hide );
+									_G[bn .. "_IconTexture"]:SetNormalTexture( items[k]["texture"] );
+									_G[bn .. "_IconTexture"]:SetScript( "OnEnter", function( self ) GameTooltip:SetOwner( self, "ANCHOR_RIGHT" ); GameTooltip:SetHyperlink( items[k]["link"] ); b:LockHighlight(); end );
+									_G[bn .. "_IconTexture"]:SetScript( "OnLeave", function() GameTooltip_Hide(); if not IsHighlightLocked() then b:UnlockHighlight(); end end );
+									_G[bn .. "_IconTexture"]:SetScript( "OnClick", OnClick );
 									_G[bn .. "_Name"]:SetText( items[k]["name"] );
 									_G[bn .. "_Name"]:SetTextColor( GetItemQualityColor( items[k]["quality"] ) );
 									_G[bn .. "_OnHand"]:SetText( RestockShop_QOH( items[k]["tsmItemString"] ) );
@@ -630,17 +675,8 @@ NS.options.cfg = {
 									end
 									MoneyFrame_Update( bn .. "_ItemValue_SmallMoneyFrame", TSMAPI:GetItemValue( items[k]["link"], NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] ) or 0 );
 									_G[bn .. "_DeleteButton"]:SetScript( "OnClick", function() StaticPopup_Show( "RESTOCKSHOP_SHOPPINGLISTITEM_DELETE", items[k]["name"], NS.db["shoppingLists"][NS.currentListKey]["name"], { ["shoppingList"] = NS.currentListKey, ["itemId"] = items[k]["itemId"] } ); end );
-									b:SetScript( "OnClick", function()
-										local sfn = subFrame.name;
-										_G[sfn .. "ItemIdEditbox"]:SetNumber( NS.db["shoppingLists"][NS.currentListKey]["items"][k]["itemId"] );
-										_G[sfn .. "FullStockQtyEditbox"]:SetNumber( NS.db["shoppingLists"][NS.currentListKey]["items"][k]["fullStockQty"] );
-										_G[sfn .. "LowStockPriceEditbox"]:SetNumber( NS.db["shoppingLists"][NS.currentListKey]["items"][k]["maxPricePct"]["low"] );
-										_G[sfn .. "NormalStockPriceEditbox"]:SetNumber( NS.db["shoppingLists"][NS.currentListKey]["items"][k]["maxPricePct"]["normal"] );
-										_G[sfn .. "FullStockPriceEditbox"]:SetNumber( NS.db["shoppingLists"][NS.currentListKey]["items"][k]["maxPricePct"]["full"] );
-										_G[sfn .. "ItemIdEditbox"]:ClearFocus();
-										_G[sfn .. "ItemIdEditbox"]:SetFocus();
-									end );
 									b:Show();
+									if IsHighlightLocked() then b:LockHighlight(); end
 								else
 									b:Hide();
 								end

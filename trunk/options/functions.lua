@@ -21,6 +21,9 @@ NS.options.TextFrame = function( name, parent, text, set )
 	local f = CreateFrame( "Frame", "$parent" .. name, parent );
 	local fs = f:CreateFontString( "$parentText", "ARTWORK", set.fontObject or "GameFontNormal" );
 	f:SetPoint( set.anchor or "TOPLEFT", set.relativeTo, set.relativePoint or "BOTTOMLEFT", set.xOffset or 0, set.yOffset or 0 );
+	if set.hidden then
+		f:Hide();
+	end
 	if set.size then
 		f:SetSize( set.size[1], set.size[2] );
 	else
@@ -63,6 +66,9 @@ NS.options.InputBox = function( name, parent, set  )
 	end
 	if set.onEditFocusLost then
 		f:SetScript( "OnEditFocusLost", set.onEditFocusLost );
+	end
+	if set.onTextChanged then
+		f:SetScript( "OnTextChanged", set.onTextChanged );
 	end
 	f.db = set.db or nil;
 	f.dbpc = set.dbpc or nil;
@@ -212,6 +218,9 @@ end
 NS.options.Frame = function( name, parent, set )
 	set.relativeTo = set.relativeTo or lastChildName( parent );
 	local f = CreateFrame( "Frame", "$parent" .. name, parent, set.template or nil );
+	if set.hidden then
+		f:Hide();
+	end
 	if set.size then
 		f:SetSize( set.size[1], set.size[2] );
 	end

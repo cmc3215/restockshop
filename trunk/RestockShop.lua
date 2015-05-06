@@ -13,6 +13,7 @@ NS.currentListKey = nil;
 NS.AuctionTab = nil;
 NS.tooltipAdded = false;
 NS.items = {};
+NS.editItemId = nil;
 NS.scanning = false;
 NS.scanType = nil;
 NS.buyAll = false;
@@ -537,37 +538,34 @@ function RestockShopFrame_ScrollFrame_Update()
 		local offsetKey = dataOffset + numEntry;
 		EntryFrame:UnlockHighlight();
 		if offsetKey <= numItems then
-			_G[EntryFrameName .. "_OnHand"]:SetText( groups[offsetKey]["onHandQty"] );
-			--
-			local restockColor;
-			if groups[offsetKey]["restockPct"] < NS.db["shoppingLists"][NS.currentListKey]["lowStockPct"] then
-				restockColor = NS.fontColor.low;
-			elseif groups[offsetKey]["restockPct"] < 100 then
-				restockColor = NS.fontColor.norm;
-			else
-				restockColor = NS.fontColor.full;
+			local OnClick = function()
+				RestockShopFrame_ScrollFrame_Entry_OnClick( offsetKey );
 			end
+			local IsHighlightLocked = function()
+				if NS.auction.selected.groupKey and NS.auction.selected.groupKey == offsetKey then
+					return true;
+				else
+					return false;
+				end
+			end
+			--
+			_G[EntryFrameName .. "_OnHand"]:SetText( groups[offsetKey]["onHandQty"] );
+			local restockColor = RestockShop_RestockColor( "font", groups[offsetKey]["restockPct"] );
 			_G[EntryFrameName .. "_Restock"]:SetText( math.floor( groups[offsetKey]["restockPct"] ) .. "%" );
 			_G[EntryFrameName .. "_Restock"]:SetTextColor( restockColor["r"], restockColor["g"], restockColor["b"] );
-			--
-			_G[EntryFrameName .. "_IconTexture"]:SetTexture( groups[offsetKey]["texture"] );
-			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnEnter", function( self ) GameTooltip:SetOwner( self, "ANCHOR_RIGHT" ); GameTooltip:SetHyperlink( groups[offsetKey]["itemLink"] ); end );
-			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnLeave", GameTooltip_Hide );
+			_G[EntryFrameName .. "_IconTexture"]:SetNormalTexture( groups[offsetKey]["texture"] );
+			_G[EntryFrameName .. "_IconTexture"]:SetScript( "OnEnter", function( self ) GameTooltip:SetOwner( self, "ANCHOR_RIGHT" ); GameTooltip:SetHyperlink( groups[offsetKey]["itemLink"] ); EntryFrame:LockHighlight(); end );
+			_G[EntryFrameName .. "_IconTexture"]:SetScript( "OnLeave", function() GameTooltip_Hide(); if not IsHighlightLocked() then EntryFrame:UnlockHighlight(); end end );
+			_G[EntryFrameName .. "_IconTexture"]:SetScript( "OnClick", OnClick );
 			_G[EntryFrameName .. "_Name"]:SetText( groups[offsetKey]["name"] );
 			_G[EntryFrameName .. "_Name"]:SetTextColor( GetItemQualityColor( groups[offsetKey]["quality"] ) );
 			_G[EntryFrameName .. "_Stacks"]:SetText( string.format( L["%d stacks of %d"], groups[offsetKey]["numAuctions"], groups[offsetKey]["count"] ) );
 			MoneyFrame_Update( EntryFrameName .. "_ItemPrice_SmallMoneyFrame", groups[offsetKey]["itemPrice"] );
-			--
 			_G[EntryFrameName .. "_PctItemValue"]:SetText( math.floor( groups[offsetKey]["pctItemValue"] ) .. "%" );
-			if groups[offsetKey]["pctMaxPrice"] > 100 then
-				_G[EntryFrameName .. "_PctItemValue"]:SetText( RED_FONT_COLOR_CODE .. _G[EntryFrameName .. "_PctItemValue"]:GetText() .. "|r" );
-			end
-			--
-			EntryFrame:SetScript( "OnClick", function () RestockShopFrame_ScrollFrame_Entry_OnClick( offsetKey ); end );
+			if groups[offsetKey]["pctMaxPrice"] > 100 then _G[EntryFrameName .. "_PctItemValue"]:SetText( RED_FONT_COLOR_CODE .. _G[EntryFrameName .. "_PctItemValue"]:GetText() .. "|r" ); end
+			EntryFrame:SetScript( "OnClick", OnClick );
 			EntryFrame:Show();
-			if NS.auction.selected.groupKey and NS.auction.selected.groupKey == offsetKey then
-				EntryFrame:LockHighlight();
-			end
+			if IsHighlightLocked() then EntryFrame:LockHighlight(); end
 		else
 			EntryFrame:Hide();
 		end
@@ -631,15 +629,27 @@ function RestockShopFrame_FlyoutPanel_ScrollFrame_Update()
 		local offsetKey = dataOffset + numEntry;
 		EntryFrame:UnlockHighlight();
 		if offsetKey <= numItems then
-			_G[EntryFrameName .. "_IconTexture"]:SetTexture( items[offsetKey]["texture"] );
-			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnEnter", function() GameTooltip:SetOwner( _G[EntryFrameName .. "_IconTexture"]:GetParent(), "ANCHOR_RIGHT" ); GameTooltip:SetHyperlink( items[offsetKey]["link"] ); end );
-			_G[EntryFrameName .. "_IconTexture"]:GetParent():SetScript( "OnLeave", GameTooltip_Hide );
+			local OnClick = function()
+				RestockShopFrame_FlyoutPanel_ScrollFrame_Entry_OnClick( offsetKey );
+			end
+			local IsHighlightLocked = function()
+				if ( NS.scanType == "SHOP" or RestockShop_Count( NS.items ) == 1 ) and NS.query.item["itemId"] == items[offsetKey]["itemId"] then
+					return true;
+				else
+					return false;
+				end
+			end
+			EntryFrame:SetScript( "OnClick", OnClick );
+			_G[EntryFrameName .. "_IconTexture"]:SetNormalTexture( items[offsetKey]["texture"] );
+			_G[EntryFrameName .. "_IconTexture"]:SetScript( "OnEnter", function( self ) GameTooltip:SetOwner( self, "ANCHOR_RIGHT" ); GameTooltip:SetHyperlink( items[offsetKey]["link"] ); EntryFrame:LockHighlight(); end );
+			_G[EntryFrameName .. "_IconTexture"]:SetScript( "OnLeave", function() GameTooltip_Hide(); if not IsHighlightLocked() then EntryFrame:UnlockHighlight(); end end );
+			_G[EntryFrameName .. "_IconTexture"]:SetScript( "OnClick", OnClick );
 			_G[EntryFrameName .. "_Name"]:SetText( items[offsetKey]["name"] );
 			_G[EntryFrameName .. "_Name"]:SetTextColor( GetItemQualityColor( items[offsetKey]["quality"] ) );
 			--
 			local onHandQty = RestockShop_QOH( items[offsetKey]["tsmItemString"] );
 			local restockPct = RestockShop_RestockPct( onHandQty, items[offsetKey]["fullStockQty"] );
-			local restockStatus = nil;
+			local restockStatus;
 			if restockPct < NS.db["shoppingLists"][NS.currentListKey]["lowStockPct"] then
 				restockStatus = NS.colorCode.low .. L["Low"] .. "|r";
 			elseif restockPct < 100 then
@@ -651,7 +661,7 @@ function RestockShopFrame_FlyoutPanel_ScrollFrame_Update()
 			end
 			_G[EntryFrameName .. "_RestockStatus"]:SetText( restockStatus );
 			--
-			local scanTexture = nil;
+			local scanTexture;
 			if not NS.items[items[offsetKey]["itemId"]] then
 				scanTexture = "Waiting";
 			else
@@ -659,11 +669,8 @@ function RestockShopFrame_FlyoutPanel_ScrollFrame_Update()
 			end
 			_G[EntryFrameName .. "_ScanTexture"]:SetTexture( "Interface\\RAIDFRAME\\ReadyCheck-" .. scanTexture );
 			--
-			EntryFrame:SetScript( "OnClick", function () RestockShopFrame_FlyoutPanel_ScrollFrame_Entry_OnClick( offsetKey ); end );
 			EntryFrame:Show();
-			if ( NS.scanType == "SHOP" or RestockShop_Count( NS.items ) == 1 ) and NS.query.item["itemId"] == items[offsetKey]["itemId"] then
-				EntryFrame:LockHighlight();
-			end
+			if IsHighlightLocked() then EntryFrame:LockHighlight(); end
 		else
 			EntryFrame:Hide();
 		end
@@ -676,7 +683,7 @@ function RestockShopFrame_FlyoutPanel_ScrollFrame_Entry_OnClick( itemKey )
 	RestockShopFrame_ListStatusFrame:Hide();
 	NS.auction.data.raw = {};
 	--
-	local item = NS.db["shoppingLists"][NS.currentListKey]["items"][itemKey];
+	local item = CopyTable( NS.db["shoppingLists"][NS.currentListKey]["items"][itemKey] );
 	table.insert( NS.query.queue, item );
 	NS.items[item["itemId"]] = item;
 	NS.items[item["itemId"]]["scanTexture"] = "Waiting";
@@ -1569,7 +1576,7 @@ function RestockShop_RestockColor( colorType, restockPct, maxPricePct )
 		return colorType == "code" and NS.colorCode.low or NS.fontColor.low; -- Orange
 	elseif restockPct < 100 then
 		return colorType == "code" and NS.colorCode.norm or NS.fontColor.norm; -- Yellow
-	elseif restockPct >= 100 and maxPricePct["full"] ~= 0 then
+	elseif restockPct >= 100 and ( not maxPricePct or maxPricePct["full"] ~= 0 ) then
 		return colorType == "code" and NS.colorCode.full or NS.fontColor.full; -- Green
 	else
 		return colorType == "code" and NS.colorCode.maxFull or NS.fontColor.maxFull; -- Gray

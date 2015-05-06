@@ -1,3 +1,9 @@
+**3.4**
+* Release date: 05/06/2015
+* Item icons can now be clicked to select an item/row in all RestockShop's scrollframes, the corresponding row is also highlighted on mouseover of the icon
+* Update to the options frame Shopping List tab, clicking an item on the list or entering it's item id now locks the highlight for that item's row, making it visually easier to edit shopping list items
+* Update to the options frame Shopping List tab, when clicking or tabbing thru the edit boxes, the full content of each box will be highlighted for faster editing
+
 **3.3**
 * Release date: 05/05/2015
 * New button added on options frame Shopping List tab, "Apply To All Items", allows updating all items with the individual entered value of either Full Stock, Low, Norm, or Full to help rapidly change large lists
