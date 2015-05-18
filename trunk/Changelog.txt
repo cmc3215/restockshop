@@ -1,3 +1,11 @@
+**3.5**
+* Release date: 05/18/2015
+* Flyout panel now offers checkboxes to include/exclude an item from a "Shop" scan, complete with "Uncheck All" and "Check All" buttons, these selections are saved between sessions
+* When selected, the button tooltips for "Hide Overpriced Stacks" and "Hide Overstock Stacks" now show the total number of auctions hidden
+* Bug fix, again, very long shopping list names on the AH tab flyout panel no longer wrap onto multiple lines obscuring the list of items
+* To reduce load, frames used at the Auction House are no longer created until actually visiting the Auction House
+* All global functions have been localized to reduce pollution in the global namespace
+
 **3.4**
 * Release date: 05/06/2015
 * Item icons can now be clicked to select an item/row in all RestockShop's scrollframes, the corresponding row is also highlighted on mouseover of the icon
