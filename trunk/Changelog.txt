@@ -1,3 +1,9 @@
+**3.6**
+* Release date: 05/21/2015
+* Auction results are now updated during scanning, instead of waiting for the scan to complete
+* New button on Auction House tab, "Pause/Resume", you can now pause your scan to buy auctions as they appear and resume afterwards
+* Bug fix, in rare situations when hiding and showing Overpriced Stacks there were duplicate auctions listed, the only real negative effect was it would cause more rescans during buying than were actually required
+
 **3.5**
 * Release date: 05/18/2015
 * Flyout panel now offers checkboxes to include/exclude an item from a "Shop" scan, complete with "Uncheck All" and "Check All" buttons, these selections are saved between sessions

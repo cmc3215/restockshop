@@ -3,6 +3,7 @@
 --------------------------------------------------------------------------------------------------------------------------------------------
 local NS = select( 2, ... );
 local L = NS.localization;
+--
 NS.addon = ...;
 NS.title = GetAddOnMetadata( NS.addon, "Title" );
 NS.stringVersion = GetAddOnMetadata( NS.addon, "Version" );
@@ -12,27 +13,9 @@ NS.wowClientBuild = select( 2, GetBuildInfo() );
 NS.currentListKey = nil;
 NS.AuctionFrameTab = nil;
 NS.tooltipAdded = false;
-NS.items = {};
 NS.editItemId = nil;
-NS.disableFlyoutChecks = false;
-NS.scanning = false;
-NS.scanType = nil;
-NS.buyAll = false;
-NS.canBid = false;
-NS.buying = false;
-NS.ailu = "LISTEN";
-NS.query = {
-	queue = {},
-	item = {},
-	page = 0,
-	totalPages = 0,
-	attempts = 1,
-	maxAttempts = 50,
-	batchAttempts = 1,
-	maxBatchAttempts = 3,
-	batchAuctions = 0,
-	totalAuctions = 0,
-};
+--
+NS.scan = {};
 NS.auction = {
 	data = {
 		raw = {},
@@ -50,18 +33,41 @@ NS.auction = {
 		found = false,
 	}
 };
+NS.disableFlyoutChecks = false;
+NS.buyAll = false;
+--
 NS.options = {};
 NS.colorCode = {
 	low = ORANGE_FONT_COLOR_CODE,
 	norm = YELLOW_FONT_COLOR_CODE,
 	full = "|cff3fbf3f",
 	maxFull = GRAY_FONT_COLOR_CODE,
+	quality = {
+		[0] = "|c" .. select( 4, GetItemQualityColor( 0 ) ),
+		[1] = "|c" .. select( 4, GetItemQualityColor( 1 ) ),
+		[2] = "|c" .. select( 4, GetItemQualityColor( 2 ) ),
+		[3] = "|c" .. select( 4, GetItemQualityColor( 3 ) ),
+		[4] = "|c" .. select( 4, GetItemQualityColor( 4 ) ),
+		[5] = "|c" .. select( 4, GetItemQualityColor( 5 ) ),
+		[6] = "|c" .. select( 4, GetItemQualityColor( 6 ) ),
+		[7] = "|c" .. select( 4, GetItemQualityColor( 7 ) ),
+	},
 };
 NS.fontColor = {
 	low = ORANGE_FONT_COLOR,
 	norm = YELLOW_FONT_COLOR,
 	full = { r=0.25, g=0.75, b=0.25 },
 	maxFull = GRAY_FONT_COLOR,
+	quality = {
+		[0] = GetItemQualityColor( 0 ),
+		[1] = GetItemQualityColor( 1 ),
+		[2] = GetItemQualityColor( 2 ),
+		[3] = GetItemQualityColor( 3 ),
+		[4] = GetItemQualityColor( 4 ),
+		[5] = GetItemQualityColor( 5 ),
+		[6] = GetItemQualityColor( 6 ),
+		[7] = GetItemQualityColor( 7 ),
+	},
 };
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- Utility Functions
@@ -285,101 +291,7 @@ NS.OnPlayerLogin = function() -- PLAYER_LOGIN
 	InterfaceOptions_AddCategory( RestockShopInterfaceOptionsPanel );
 end
 
---
-NS.OnAuctionItemListUpdate = function() -- AUCTION_ITEM_LIST_UPDATE
-	RestockShopEventsFrame:UnregisterEvent( "AUCTION_ITEM_LIST_UPDATE" );
-	if NS.ailu == "AUCTION_WON" then NS.AfterAuctionWon(); end
-	if NS.ailu == "IGNORE" then NS.ailu = "LISTEN"; return end
-	if not NS.scanning then return end
-	NS.query.batchAuctions, NS.query.totalAuctions = GetNumAuctionItems( "list" );
-	NS.query.totalPages = ceil( NS.query.totalAuctions / NUM_AUCTION_ITEMS_PER_PAGE );
-	NS.ScanAuctionPage();
-end
 
---
-NS.OnChatMsgSystem = function( ... ) -- CHAT_MSG_SYSTEM
-	local arg1 = select( 1, ... );
-	if not arg1 then return end
-	if arg1 == ERR_AUCTION_BID_PLACED then
-		-- Bid Acccepted.
-		NS.ailu = "IGNORE"; -- Ignore the list update after "Bid accepted."
-		RestockShopEventsFrame:RegisterEvent( "AUCTION_ITEM_LIST_UPDATE" );
-		RestockShopEventsFrame:UnregisterEvent( "UI_ERROR_MESSAGE" );
-	elseif arg1:match( string.gsub( ERR_AUCTION_WON_S, "%%s", "" ) ) and arg1 == string.format( ERR_AUCTION_WON_S, NS.auction.selected.auction["name"] ) then
-		-- You won an auction for %s
-		NS.ailu = "AUCTION_WON"; -- Helps decide to Ignore or Listen to the list update after "You won an auction for %s"
-		RestockShopEventsFrame:RegisterEvent( "AUCTION_ITEM_LIST_UPDATE" );
-		RestockShopEventsFrame:UnregisterEvent( "CHAT_MSG_SYSTEM" );
-	end
-end
-
---
-NS.OnUIErrorMessage = function( ... ) -- UI_ERROR_MESSAGE
-	local arg1 = select( 1, ... );
-	if not arg1 or (
-	arg1 ~= ERR_ITEM_NOT_FOUND and
-	arg1 ~= ERR_AUCTION_HIGHER_BID and
-	arg1 ~= ERR_AUCTION_BID_OWN and
-	arg1 ~= ERR_NOT_ENOUGH_MONEY and
-	arg1 ~= ERR_ITEM_MAX_COUNT
-	) then
-		return;
-	end
-	--
-	RestockShopEventsFrame:UnregisterEvent( "UI_ERROR_MESSAGE" );
-	--
-	if arg1 == ERR_ITEM_NOT_FOUND or arg1 == ERR_AUCTION_HIGHER_BID or arg1 == ERR_AUCTION_BID_OWN then
-		if arg1 == ERR_ITEM_NOT_FOUND or arg1 == ERR_AUCTION_HIGHER_BID then
-			NS.Print( RED_FONT_COLOR_CODE .. L["That auction is no longer available"] .. "|r" );
-		elseif arg1 == ERR_AUCTION_BID_OWN then
-			NS.Print( RED_FONT_COLOR_CODE .. L["That auction belongs to a character on your account"] .. "|r" );
-		end
-		--
-		NS.auction.data.groups.visible[NS.auction.selected.groupKey]["numAuctions"] = NS.auction.data.groups.visible[NS.auction.selected.groupKey]["numAuctions"] - 1;
-		--
-		if NS.auction.data.groups.visible[NS.auction.selected.groupKey]["numAuctions"] == 0 then
-			-- Group removed
-			table.remove( NS.auction.data.groups.visible, NS.auction.selected.groupKey );
-			NS.Auction_Deselect();
-			if next( NS.auction.data.groups.visible ) then
-				-- More auctions exist
-				if NS.buyAll then
-					NS.AuctionGroup_OnClick( 1 );
-				else
-					AuctionFrameRestockShop_ScrollFrame:Update();
-					if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
-						NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
-					else
-						NS.StatusFrame_Message( L["Select an auction to buy or click \"Buy All\""] );
-					end
-					AuctionFrameRestockShop_BuyAllButton:Enable();
-				end
-			else
-				-- No auctions exist
-				AuctionFrameRestockShop_ScrollFrame:Update();
-				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
-					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
-				else
-					NS.StatusFrame_Message( L["No additional auctions matched your settings"] );
-				end
-				NS.BuyAllButton_Reset();
-			end
-		else
-			-- Single auction removed
-			table.remove( NS.auction.data.groups.visible[NS.auction.selected.groupKey]["auctions"] );
-			NS.AuctionGroup_OnClick( NS.auction.selected.groupKey );
-		end
-	elseif arg1 == ERR_NOT_ENOUGH_MONEY then -- Not Enough Money
-		NS.StatusFrame_Message( L["You don't have enough money to buy that auction"] );
-		AuctionFrameRestockShop_BuyAllButton:Enable();
-	elseif arg1 == ERR_ITEM_MAX_COUNT then -- Item Max Count
-		NS.StatusFrame_Message( L["You can't carry anymore of that item"] );
-		AuctionFrameRestockShop_BuyAllButton:Enable();
-	end
-	--
-	NS.buying = false;
-	AuctionFrameRestockShop_ShopButton:Enable();
-end
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- AuctionFrame Tab
 --------------------------------------------------------------------------------------------------------------------------------------------
@@ -402,7 +314,16 @@ end
 NS.Reset = function( flyoutPanelItem_Clicked )
 	RestockShopEventsFrame:UnregisterEvent( "CHAT_MSG_SYSTEM" );
 	RestockShopEventsFrame:UnregisterEvent( "UI_ERROR_MESSAGE" );
-	local dm, rsfn = nil, AuctionFrameRestockShop:GetName();
+	NS.scan:Reset(); -- Also Unregisters AUCTION_ITEM_LIST_UPDATE
+	NS.auction.data.raw = {};
+	NS.auction.data.groups.visible = {};
+	NS.auction.data.groups.overpriced = {};
+	NS.auction.data.groups.overstock = {};
+	NS.auction.selected.found = false;
+	NS.auction.selected.groupKey = nil;
+	NS.auction.selected.auction = nil;
+	NS.disableFlyoutChecks = false;
+	NS.buyAll = false;
 	--
 	AuctionFrameRestockShop_TitleText:SetText(
 		NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] ..
@@ -410,48 +331,24 @@ NS.Reset = function( flyoutPanelItem_Clicked )
 		"     /     " .. NS.colorCode.low .. NS.db["shoppingLists"][NS.currentListKey]["lowStockPct"] .. "%|r" ..
 		"     /     " .. NS.colorCode.full .. NS.db["shoppingLists"][NS.currentListKey]["hideOverstockStacksPct"] .. "%|r"
 	);
-	--
-	if NS.db["hideOverpricedStacks"] then
-		AuctionFrameRestockShop_HideOverpricedStacksButton:LockHighlight();
-	end
-	if NS.db["hideOverstockStacks"] then
-		AuctionFrameRestockShop_HideOverstockStacksButton:LockHighlight();
-	end
-	--
-	NS.ScanStop();
-	NS.buying = false;
-	NS.Auction_Deselect();
-	NS.StatusFrame_Message( L["Press \"Shop\" to scan your list or click an item on the right to scan a single item"] );
-	--
-	dm = _G[rsfn .. "_ShoppingListsDropDownMenu"];
-	UIDropDownMenu_Initialize( dm, NS.DropDownMenu_Initialize );
-	UIDropDownMenu_SetSelectedValue( dm, NS.currentListKey );
-	--
-	NS.ShopButton_Reset();
-	NS.BuyAllButton_Reset();
-	--
-	NS.items = {};
-	NS.query.item = {};
-	NS.query.queue = {};
-	NS.auction.data.groups.visible = {};
-	NS.auction.data.groups.overpriced = {};
-	NS.auction.data.groups.overstock = {};
-	--
-	AuctionFrameRestockShop_ScrollFrame:SetVerticalScroll( 0 );
 	NS.HideAuctionSortButtonArrows();
-	AuctionFrameRestockShop_NameSortButton:Click(); -- Also updates ScrollFrame
-	--
-	AuctionFrameRestockShop_ListStatusFrameText:SetText( string.format( "%s\n\n%s   =   %s%d|r", NS.db["shoppingLists"][NS.currentListKey]["name"], NS.ListSummary(), NORMAL_FONT_COLOR_CODE, #NS.db["shoppingLists"][NS.currentListKey]["items"] ) );
+	AuctionFrameRestockShop_NameSortButton:Click();
+	AuctionFrameRestockShop_HideOverpricedStacksButton:Reset();
+	AuctionFrameRestockShop_HideOverstockStacksButton:Reset();
+	AuctionFrameRestockShop_PauseResumeButton:Reset();
 	AuctionFrameRestockShop_ListStatusFrame:Show();
-	--
+	AuctionFrameRestockShop_ScrollFrame:Reset();
+	NS.StatusFrame_Message( L["Press \"Shop\" to scan your list or click an item on the right to scan a single item"] );
+	AuctionFrameRestockShop_ShoppingListsDropDownMenu:Reset( NS.currentListKey );
+	AuctionFrameRestockShop_ShopButton:Reset();
+	AuctionFrameRestockShop_BuyAllButton:Reset();
 	AuctionFrameRestockShop_FlyoutPanel.TitleText:SetText( NS.db["shoppingLists"][NS.currentListKey]["name"] );
 	if not flyoutPanelItem_Clicked then
-		AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:SetVerticalScroll( 0 ); -- Only reset vertical scroll when NOT clicking entry in FlyoutPanel
+		AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:SetVerticalScroll( 0 ); -- Scroll to top when Reset() does NOT originate from clicking item in FlyoutPanel
 	end
-	NS.disableFlyoutChecks = false;
 	AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:Update();
 	AuctionFrameRestockShop_FlyoutPanel_FooterText:SetText( NS.ListSummary() );
-	--
+	-- Hide Static Popups
 	StaticPopup_Hide( "RESTOCKSHOP_APPLY_TO_ALL_ITEMS" );
 	StaticPopup_Hide( "RESTOCKSHOP_APPLY_TO_ALL_LISTS" );
 	StaticPopup_Hide( "RESTOCKSHOP_SHOPPINGLISTITEM_DELETE" );
@@ -490,43 +387,18 @@ NS.ListSummary = function()
 end
 
 --
-NS.Auction_Deselect = function()
-	NS.SetCanBid( false );
-	NS.auction.selected.found = false;
-	NS.auction.selected.groupKey = nil;
-	NS.auction.selected.auction = nil;
-	AuctionFrameRestockShop_ScrollFrame:Update();
-end
-
---
 NS.StatusFrame_Message = function( text )
 	AuctionFrameRestockShop_DialogFrame_StatusFrameText:SetText( text );
-	NS.StatusFrame_Activate();
-end
-
---
-NS.StatusFrame_Activate = function()
 	AuctionFrameRestockShop_DialogFrame_BuyoutFrame:Hide();
 	AuctionFrameRestockShop_DialogFrame_StatusFrame:Show();
 end
 
 --
 NS.BuyoutFrame_Activate = function()
+	AuctionFrameRestockShop_DialogFrame_BuyoutFrame_AcceptButton:Enable();
+	AuctionFrameRestockShop_DialogFrame_BuyoutFrame_CancelButton:Enable();
 	AuctionFrameRestockShop_DialogFrame_StatusFrame:Hide();
 	AuctionFrameRestockShop_DialogFrame_BuyoutFrame:Show();
-end
-
---
-NS.ShopButton_Reset = function()
-	AuctionFrameRestockShop_ShopButton:Enable();
-	AuctionFrameRestockShop_ShopButton:SetText( L["Shop"] );
-end
-
---
-NS.BuyAllButton_Reset = function()
-	NS.buyAll = false;
-	AuctionFrameRestockShop_BuyAllButton:Disable();
-	AuctionFrameRestockShop_BuyAllButton:SetText( L["Buy All"] );
 end
 
 --
@@ -561,42 +433,118 @@ NS.AuctionSortButton_OnClick = function( button, itemInfoKey )
 	end
 end
 --
-NS.AuctionGroup_OnClick = function( groupKey )
-	if NS.scanning or NS.buying then
-		NS.Print( L["Busy scanning or buying, selection ignored."] );
+NS.HideOverpriceOverstockButton_OnClick = function( button, hide )
+	if NS.scan.status == "scanning" or NS.scan.status == "buying" then
+		NS.Print( L["Selection ignored, busy scanning or buying"] );
 		return; -- Stop function
 	end
 	--
-	NS.SetCanBid( false );
-	--
-	local auction = NS.auction.data.groups.visible[groupKey]["auctions"][#NS.auction.data.groups.visible[groupKey]["auctions"]];
-	NS.query.page = auction["page"];
-	NS.auction.selected.found = false;
-	NS.auction.selected.groupKey = groupKey;
-	NS.auction.selected.auction = auction; -- Cannot use index, ownerFullName, or buyoutPrice yet, these may change after scanning the page
-	if NS.buyAll and groupKey == 1 then
-		AuctionFrameRestockShop_ScrollFrame:SetVerticalScroll( 0 ); -- Scroll to top when first group is selected during Buy All
+	if NS.scan.status == "selected" then
+		AuctionFrameRestockShop_DialogFrame_BuyoutFrame_CancelButton:Click();
 	end
-	AuctionFrameRestockShop_ScrollFrame:Update();
 	--
-	NS.query.queue = {};
-	table.insert( NS.query.queue, NS.items[auction["itemId"]] );
-	NS.scanType = "SELECT";
-	NS.ScanAuctionQueue();
+	NS.AuctionDataGroups_ShowOverpricedStacks();
+	NS.AuctionDataGroups_ShowOverstockStacks();
+	-- Overpriced
+	if hide == "overpriced" then
+		if NS.db["hideOverpricedStacks"] then
+			-- Show
+			NS.AuctionDataGroups_Sort();
+			NS.db["hideOverpricedStacks"] = false;
+			button:UnlockHighlight();
+		else
+			-- Hide
+			NS.AuctionDataGroups_HideOverpricedStacks();
+			NS.db["hideOverpricedStacks"] = true;
+			button:LockHighlight();
+		end
+		--
+		if NS.db["hideOverstockStacks"] then
+			NS.AuctionDataGroups_HideOverstockStacks();
+		end
+	-- Overstock
+	elseif hide == "overstock" then
+		if NS.db["hideOverstockStacks"] then
+			-- Show
+			NS.AuctionDataGroups_Sort();
+			NS.db["hideOverstockStacks"] = false;
+			button:UnlockHighlight();
+		else
+			-- Hide
+			NS.AuctionDataGroups_HideOverstockStacks();
+			NS.db["hideOverstockStacks"] = true;
+			button:LockHighlight();
+		end
+		--
+		if NS.db["hideOverpricedStacks"] then
+			NS.AuctionDataGroups_HideOverpricedStacks();
+		end
+	end
+	--
+	GameTooltip:SetText( button.tooltip() );
+	--
+	if next( NS.auction.data.groups.visible ) then
+		-- Auctions shown
+		if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+			NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+		else
+			NS.StatusFrame_Message( L["Select an auction to buy or click \"Buy All\""] );
+		end
+		AuctionFrameRestockShop_BuyAllButton:Enable();
+	elseif next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+		-- Auctions hidden
+		NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
+		AuctionFrameRestockShop_BuyAllButton:Disable();
+	elseif next( NS.scan.items ) then
+		-- Auctions scanned, but none available
+		NS.StatusFrame_Message( L["No additional auctions matched your settings"] );
+		AuctionFrameRestockShop_BuyAllButton:Disable();
+	end
+	AuctionFrameRestockShop_ScrollFrame:SetVerticalScroll( 0 );
+	AuctionFrameRestockShop_ScrollFrame:Update();
+end
+--
+NS.AuctionGroup_OnClick = function( groupKey )
+	if NS.scan.status == "ready" or ( not NS.scan.paused and NS.scan.status == "scanning" and NS.scan.type == "SHOP" ) or NS.scan.status == "selected" then
+		if NS.scan.status == "ready" or NS.scan.status == "selected" then
+			-- SELECT
+			local auction = NS.auction.data.groups.visible[groupKey]["auctions"][#NS.auction.data.groups.visible[groupKey]["auctions"]];
+			NS.scan.query.page = auction["page"];
+			NS.auction.selected.found = false;
+			NS.auction.selected.groupKey = groupKey;
+			NS.auction.selected.auction = auction; -- Cannot use index or buyoutPrice yet, these may change after scanning the page
+			if NS.buyAll and groupKey == 1 then
+				AuctionFrameRestockShop_ScrollFrame:SetVerticalScroll( 0 ); -- Scroll to top when first group is selected during Buy All
+			end
+			AuctionFrameRestockShop_ScrollFrame:Update();
+			NS.scan:QueueAddItem( NS.scan.items[auction["itemId"]], nil, "SELECT" );
+			NS.scan:Start( "SELECT" );
+		else
+			-- Pause
+			AuctionFrameRestockShop_PauseResumeButton:Click();
+		end
+	elseif NS.scan.status == "buying" then
+		NS.Print( L["Selection ignored, busy buying an auction"] );
+	else
+		NS.Print( L["Selection ignored, item must finish scanning"] );
+	end
+end
+
+--
+NS.AuctionGroup_Deselect = function()
+	NS.scan.status = "ready";
+	NS.auction.selected.found = false;
+	NS.auction.selected.groupKey = nil;
+	NS.auction.selected.auction = nil;
+	AuctionFrameRestockShop_ScrollFrame:Update();
 end
 
 --
 NS.FlyoutPanelItem_OnClick = function( itemKey )
 	NS.Reset( true );
-	AuctionFrameRestockShop_ListStatusFrame:Hide();
-	NS.auction.data.raw = {};
-	--
 	local item = CopyTable( NS.db["shoppingLists"][NS.currentListKey]["items"][itemKey] );
-	table.insert( NS.query.queue, item );
-	NS.items[item["itemId"]] = item;
-	NS.items[item["itemId"]]["scanTexture"] = "Waiting";
-	NS.scanType = "SHOP";
-	NS.ScanAuctionQueue();
+	NS.scan:QueueAddItem( item );
+	NS.scan:Start( "SHOP" );
 end
 --
 NS.FlyoutPanelSetChecks = function( checked )
@@ -622,9 +570,9 @@ NS.AuctionDataGroups_OnHandQtyChanged = function()
 		if group["itemId"] == NS.auction.selected.auction["itemId"] then
 			local onHandQty = NS.QOH( group["tsmItemString"] );
 			local restockPct = NS.RestockPct( onHandQty, group["fullStockQty"] );
-			local pctMaxPrice = math.ceil( ( group["itemPrice"] * 100 ) / NS.MaxPrice( group["itemValue"], restockPct, NS.items[group["itemId"]]["maxPricePct"] ) );
+			local pctMaxPrice = math.ceil( ( group["itemPrice"] * 100 ) / NS.MaxPrice( group["itemValue"], restockPct, NS.scan.items[group["itemId"]]["maxPricePct"] ) );
 			--
-			if restockPct >= 100 and NS.items[group["itemId"]]["maxPricePct"]["full"] == 0 then
+			if restockPct >= 100 and NS.scan.items[group["itemId"]]["maxPricePct"]["full"] == 0 then
 				-- Remove
 				table.remove( NS.auction.data.groups.visible, groupKey );
 			else
@@ -674,10 +622,9 @@ NS.AuctionDataGroups_ShowOverpricedStacks = function()
 	-- Run this function when:
 		-- a) Auction is won (NS.AuctionDataGroups_OnHandQtyChanged)
 		-- b) User toggles either Hide button
-	local groupKey = 1;
-	while groupKey <= #NS.auction.data.groups.overpriced do
+	while #NS.auction.data.groups.overpriced > 0 do
 		-- Remove and insert
-		table.insert( NS.auction.data.groups.visible, table.remove( NS.auction.data.groups.overpriced, groupKey ) );
+		table.insert( NS.auction.data.groups.visible, table.remove( NS.auction.data.groups.overpriced ) );
 	end
 end
 
@@ -708,10 +655,9 @@ NS.AuctionDataGroups_ShowOverstockStacks = function()
 	-- Run this function when:
 		-- a) Auction is won (NS.AuctionDataGroups_OnHandQtyChanged)
 		-- b) User toggles either Hide button
-	local groupKey = 1;
-	while groupKey <= #NS.auction.data.groups.overstock do
+	while #NS.auction.data.groups.overstock > 0 do
 		-- Remove and insert
-		table.insert( NS.auction.data.groups.visible, table.remove( NS.auction.data.groups.overstock, groupKey ) );
+		table.insert( NS.auction.data.groups.visible, table.remove( NS.auction.data.groups.overstock ) );
 	end
 end
 
@@ -728,6 +674,7 @@ end
 --
 NS.AuctionDataGroups_RemoveItemId = function( itemId )
 	-- This function is run just before raw data from a RESCAN is used to form new data groups, out with the old before in with the new
+	-- Also used on Resume from Pause to rescan the item that was Paused
 	--
 	-- Visible
 	local groupKey = 1;
@@ -765,22 +712,67 @@ NS.AuctionDataGroups_RemoveItemId = function( itemId )
 end
 
 --
+NS.AuctionDataGroups_ImportRawData = function()
+	for itemId, pages in pairs( NS.auction.data.raw ) do -- [ItemId] => [Page] => [Index] => ItemInfo
+		for page, indexes in pairs( pages ) do
+			for index, itemInfo in pairs( indexes ) do
+				local groupKey = NS.AuctionDataGroups_FindGroupKey( itemInfo["itemId"], itemInfo["name"], itemInfo["count"], itemInfo["itemPrice"] );
+				if groupKey then
+					table.insert( NS.auction.data.groups.visible[groupKey]["auctions"], itemInfo );
+					NS.auction.data.groups.visible[groupKey]["numAuctions"] = NS.auction.data.groups.visible[groupKey]["numAuctions"] + 1;
+				else
+					table.insert( NS.auction.data.groups.visible, {
+						["restockPct"] = itemInfo["restockPct"],
+						["name"] = itemInfo["name"],
+						["texture"] = itemInfo["texture"],
+						["count"] = itemInfo["count"],
+						["quality"] = itemInfo["quality"],
+						["itemId"] = itemInfo["itemId"],
+						["itemLink"] = itemInfo["itemLink"],
+						["itemValue"] = itemInfo["itemValue"],
+						["tsmItemString"] = itemInfo["tsmItemString"],
+						["itemPrice"] = itemInfo["itemPrice"],
+						["pctItemValue"] = itemInfo["pctItemValue"],
+						["pctMaxPrice"] = itemInfo["pctMaxPrice"],
+						["onHandQty"] = itemInfo["onHandQty"],
+						["fullStockQty"] = itemInfo["fullStockQty"],
+						["numAuctions"] = 1,
+						["auctions"] = { itemInfo }
+					} );
+				end
+			end
+		end
+	end
+	--
+	if NS.db["hideOverpricedStacks"] then
+		NS.AuctionDataGroups_HideOverpricedStacks();
+	end
+	--
+	if NS.db["hideOverstockStacks"] then
+		NS.AuctionDataGroups_HideOverstockStacks();
+	end
+	--
+	NS.AuctionDataGroups_Sort();
+	-- Cleans page of raw data that was just imported
+	NS.auction.data.raw[NS.scan.query.item["itemId"]] = {};
+end
+
+--
 NS.AuctionDataGroups_Sort = function()
 	if not next( NS.auction.data.groups.visible ) then return end
 	table.sort ( NS.auction.data.groups.visible,
 		function ( item1, item2 )
+			if item1[NS.auction.data.sortKey] == item2[NS.auction.data.sortKey] then
+				if item1["pctItemValue"] ~= item2["pctItemValue"] then
+					return item1["pctItemValue"] < item2["pctItemValue"];
+				else
+					return item1["count"] < item2["count"];
+				end
+			end
 			if NS.auction.data.sortOrder == "ASC" then
-				if NS.auction.data.sortKey ~= "pctItemValue" and item1[NS.auction.data.sortKey] == item2[NS.auction.data.sortKey] then
-					return item1["pctItemValue"] < item2["pctItemValue"];
-				else
-					return item1[NS.auction.data.sortKey] < item2[NS.auction.data.sortKey];
-				end
+				return item1[NS.auction.data.sortKey] < item2[NS.auction.data.sortKey];
 			elseif NS.auction.data.sortOrder == "DESC" then
-				if NS.auction.data.sortKey ~= "pctItemValue" and item1[NS.auction.data.sortKey] == item2[NS.auction.data.sortKey] then
-					return item1["pctItemValue"] < item2["pctItemValue"];
-				else
-					return item1[NS.auction.data.sortKey] > item2[NS.auction.data.sortKey];
-				end
+				return item1[NS.auction.data.sortKey] > item2[NS.auction.data.sortKey];
 			end
 		end
 	);
@@ -792,243 +784,235 @@ end
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- Scan
 --------------------------------------------------------------------------------------------------------------------------------------------
-NS.ScanStart = function()
-	NS.scanning = true;
-	NS.SetCanBid( false );
+function NS.scan:Reset()
+	RestockShopEventsFrame:UnregisterEvent( "AUCTION_ITEM_LIST_UPDATE" );
+	self.items = {};
+	self.queue = {};
+	self.query = {
+		item = {},
+		page = 0,
+		totalPages = 0,
+		attempts = 1,
+		maxAttempts = 50,
+	};
+	self.pauseQueue = {};
+	self.paused = false;
+	self.type = nil;
+	self.status = "ready"; -- ready, scanning, selected, buying
+	self.ailu = "LISTEN";
+end
+function NS.scan:QueueAddList( queue )
+	for _,item in ipairs( NS.db["shoppingLists"][NS.currentListKey]["items"] ) do
+		table.insert( queue or self.queue, item );
+		self.items[item["itemId"]] = item;
+		self.items[item["itemId"]]["scanTexture"] = "Waiting";
+	end
+	table.sort ( self.queue, function ( item1, item2 )
+		return item1["name"] > item2["name"]; -- Sort by name Z-A because items are pulled from the end of the queue which will become A-Z
+	end	);
+end
+function NS.scan:QueueAddItem( item, queue, scanType )
+	table.insert( queue or self.queue, item );
+	local scanTexture;
+	if scanType == "SELECT" then
+		scanTexture = self.items[item["itemId"]]["scanTexture"];
+	else
+		scanTexture = "Waiting";
+	end
+	self.items[item["itemId"]] = item;
+	self.items[item["itemId"]]["scanTexture"] = scanTexture;
+end
+function NS.scan:QueueRemoveItem( item, queue )
+	local queueKey;
+	for i, queueItem in ipairs( queue ) do
+		if queueItem["itemId"] == item["itemId"] then
+			queueKey = i;
+			break; -- Stop loop
+		end
+	end
+	if queueKey then
+		table.remove( queue, queueKey );
+	end
+end
+function NS.scan:Start( type )
+	if self.status ~= "ready" and self.status ~= "selected" then return end
+	--
+	self.status = "scanning";
+	self.type = ( function() if type == "SELECT_UPDATE" then return "SELECT"; else return type; end end )();
+	AuctionFrameRestockShop_ListStatusFrame:Hide();
+	AuctionFrameRestockShop_DialogFrame_BuyoutFrame_AcceptButton:Disable();
+	AuctionFrameRestockShop_DialogFrame_BuyoutFrame_CancelButton:Disable();
 	AuctionFrameRestockShop_ShopButton:SetText( L["Abort"] );
 	AuctionFrameRestockShop_BuyAllButton:Disable();
+	if self.type == "SHOP" or self.paused then
+		AuctionFrameRestockShop_PauseResumeButton:Enable();
+	else
+		AuctionFrameRestockShop_PauseResumeButton:Disable();
+	end
+	--
+	if type ~= "SELECT_UPDATE" then
+		self:QueueRun(); --QueueRun() not used with SELECT_UPDATE, after buying an auction it's faster to use the AUCTION_ITEM_LIST_UPDATE for our SELECT scan
+	end
 end
-
---
-NS.ScanStop = function()
-	RestockShopEventsFrame:UnregisterEvent( "AUCTION_ITEM_LIST_UPDATE" );
-	NS.scanning = false;
-	NS.query.page = 0;
-	NS.query.attempts = 1;
-	NS.query.batchAttempts = 1;
-	AuctionFrameRestockShop_ShopButton:Enable();
-end
-
---
-NS.ScanAuctionQueue = function()
-	if NS.scanning then return end
-	if NS.scanType == "SHOP" then
+function NS.scan:QueueRun()
+	if self.status ~= "scanning" then return end
+	-- Update FlyoutPanel checks and footer
+	if self.type == "SHOP" then
 		NS.disableFlyoutChecks = true;
 		local footerText = ( function()
-			if #NS.query.queue == 0 then
+			if #self.queue == 0 then
 				return NS.ListSummary();
 			else
-				return string.format( L["%d items remaining"], #NS.query.queue );
+				return string.format( L["%d items remaining"], #self.queue );
 			end
 		end )();
 		AuctionFrameRestockShop_FlyoutPanel_FooterText:SetText( footerText );
 	end
-	if not next( NS.query.queue ) then
-		-- Auction scan complete, queue empty
-		if NS.scanType ~= "SELECT" then
-			-- Assemble into sortable groups (itemid has x stacks of y for z copper)
-			if NS.scanType == "RESCAN" then
-				-- Remove groups for rescanned item, new groups will be created from raw data
-				NS.AuctionDataGroups_RemoveItemId( NS.query.item["itemId"] );
-			end
-			--
-			for itemId, pages in pairs( NS.auction.data.raw ) do -- [ItemId] => [Page] => [Index] => ItemInfo
-				for page, indexes in pairs( pages ) do
-					for index, itemInfo in pairs( indexes ) do
-						local groupKey = NS.AuctionDataGroups_FindGroupKey( itemInfo["itemId"], itemInfo["name"], itemInfo["count"], itemInfo["itemPrice"] );
-						if groupKey then
-							table.insert( NS.auction.data.groups.visible[groupKey]["auctions"], itemInfo );
-							NS.auction.data.groups.visible[groupKey]["numAuctions"] = NS.auction.data.groups.visible[groupKey]["numAuctions"] + 1;
-						else
-							table.insert( NS.auction.data.groups.visible, {
-								["restockPct"] = itemInfo["restockPct"],
-								["name"] = itemInfo["name"],
-								["texture"] = itemInfo["texture"],
-								["count"] = itemInfo["count"],
-								["quality"] = itemInfo["quality"],
-								["itemId"] = itemInfo["itemId"],
-								["itemLink"] = itemInfo["itemLink"],
-								["itemValue"] = itemInfo["itemValue"],
-								["tsmItemString"] = itemInfo["tsmItemString"],
-								["itemPrice"] = itemInfo["itemPrice"],
-								["pctItemValue"] = itemInfo["pctItemValue"],
-								["pctMaxPrice"] = itemInfo["pctMaxPrice"],
-								["onHandQty"] = itemInfo["onHandQty"],
-								["fullStockQty"] = itemInfo["fullStockQty"],
-								["numAuctions"] = 1,
-								["auctions"] = { itemInfo }
-							} );
-						end
-					end
-				end
-			end
-			--
-			if NS.db["hideOverpricedStacks"] then
-				NS.AuctionDataGroups_HideOverpricedStacks();
-			end
-			--
-			if NS.db["hideOverstockStacks"] then
-				NS.AuctionDataGroups_HideOverstockStacks();
-			end
-			--
-			NS.AuctionDataGroups_Sort();
-			AuctionFrameRestockShop_ScrollFrame:Update();
-		end
-		NS.ScanComplete();
-		return; -- Stop function, queue is empty, scan completed
+	-- Scan complete, queue empty
+	if #self.queue == 0 then
+		self:Complete();
+		return; -- Stop function, queue is empty, scan complete
 	end
 	-- Remove and query last item in the queue
-	NS.query.item = table.remove( NS.query.queue );
-	NS.ScanStart();
+	self.query.item = table.remove( self.queue );
+	-- Update scanTexture, Highlight query item, vertical scroll if needed
+	AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:Update();
 	--
-	AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:Update(); -- Update scanTexture and Highlight query item, also moves vertical scroll
-	--
-	if NS.scanType ~= "SELECT" then
-		NS.StatusFrame_Message( L["Scanning"] .. " " .. NS.query.item["name"] .. "..." );
-	end
-	--
-	local itemValue = TSMAPI:GetItemValue( NS.query.item["link"], NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] ) or 0;
+	local itemValue = TSMAPI:GetItemValue( self.query.item["link"], NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] ) or 0;
 	--
 	if itemValue == 0 then
 		-- Skipping: No Item Value
-		NS.Print( string.format( L["Skipping %s: %sRequires %s data|r"], NS.query.item["link"], RED_FONT_COLOR_CODE,NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] ) );
-		NS.items[NS.query.item["itemId"]]["scanTexture"] = "NotReady";
-		NS.ScanStop();
-		NS.ScanAuctionQueue();
-	elseif NS.query.item["checked"] == false or NS.query.item["maxPricePct"]["full"] == 0 and NS.QOH( NS.query.item["tsmItemString"] ) >= NS.query.item["fullStockQty"] then
+		NS.Print( string.format( L["Skipping %s: %sRequires %s data|r"], self.query.item["link"], RED_FONT_COLOR_CODE,NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] ) );
+		self.items[self.query.item["itemId"]]["scanTexture"] = "NotReady";
+		self:QueueRun();
+	elseif not self.query.item["checked"] or self.query.item["maxPricePct"]["full"] == 0 and NS.QOH( self.query.item["tsmItemString"] ) >= self.query.item["fullStockQty"] then
 		-- Skipping: Full Stock reached and no Full price set or unchecked
-		NS.items[NS.query.item["itemId"]]["scanTexture"] = "NotReady";
-		NS.ScanStop();
-		NS.ScanAuctionQueue();
+		self.items[self.query.item["itemId"]]["scanTexture"] = "NotReady";
+		self:QueueRun();
 	else
-		-- OK: SendAuctionQuery()
-		if NS.scanType ~= "SELECT" then
-			NS.auction.data.raw[NS.query.item["itemId"]] = {}; -- Select scan only reads, it won't be rewriting the raw data
+		-- OK: QueryPageSend()
+		if self.type ~= "SELECT" then
+			NS.auction.data.raw[self.query.item["itemId"]] = {}; -- Select scan only reads, it won't be rewriting the raw data
+			NS.StatusFrame_Message( L["Scanning"] .. " " .. NS.colorCode.quality[self.query.item["quality"]] .. self.query.item["name"] .. "|r" );
 		end
-		NS.SendAuctionQuery();
+		self:QueryPageSend();
 	end
 end
-
---
-NS.SendAuctionQuery = function()
-	if not NS.scanning then return end
-	if CanSendAuctionQuery() and NS.ailu ~= "IGNORE" then
-		NS.query.attempts = 1; -- Set to default on successful attempt
-		local name = NS.query.item["name"];
-		local page = NS.query.page or nil;
+function NS.scan:QueryPageSend()
+	if self.status ~= "scanning" then return end
+	if CanSendAuctionQuery() and self.ailu ~= "IGNORE" then
+		self.query.attempts = 1; -- Set to default on successful attempt
+		local name = self.query.item["name"];
+		local page = self.query.page;
 		local minLevel,maxLevel,invTypeIndex,classIndex,subClassIndex,isUsable,qualityIndex,getAll;
 		SortAuctionClearSort( "list" );
 		SortAuctionSetSort( "list", "buyout" );
-		SortAuctionSetSort( "list", "quantity" );
-		SortAuctionSetSort( "list", "name" ); -- Very unlikely items will be the same "level", "quality" and "name", this will group them together for the least chance of fail on max price exceeded checks
-		SortAuctionSetSort( "list", "level" ); -- ^
-		SortAuctionSetSort( "list", "quality" ); -- ^
 		SortAuctionApplySort( "list" );
 		RestockShopEventsFrame:RegisterEvent( "AUCTION_ITEM_LIST_UPDATE" );
 		QueryAuctionItems( name, minLevel, maxLevel, invTypeIndex, classIndex, subClassIndex, page, isUsable, qualityIndex, getAll );
-	elseif NS.query.attempts < NS.query.maxAttempts then
+	elseif self.query.attempts < self.query.maxAttempts then
 		-- Increment attempts, delay and reattempt
-		NS.query.attempts = NS.query.attempts + 1;
-		NS.TimeDelayFunction( 0.10, NS.SendAuctionQuery );
+		self.query.attempts = self.query.attempts + 1;
+		NS.TimeDelayFunction( 0.10, function() self:QueryPageSend() end );
 	else
-		-- Aborting scan of this item, return to queue if NOT SELECT
-		NS.StatusFrame_Message( L["Could not query Auction House after several attempts, please try again in a few moments"] );
-		NS.ScanStop();
-		if NS.scanType == "SELECT" then
-			NS.Auction_Deselect(); -- Select failed, deselect auction and allow user to manually click again
-			return; -- Stop function, a failed Select should never be allowed to complete, just deselect or rescan
-		end
-		NS.ScanAuctionQueue();
+		-- Aborting scan
+		NS.Print( L["Could not query Auction House after several attempts, try again later"] );
+		NS.Reset();
 	end
 end
-
---
-NS.ScanAuctionPage = function()
-	if not NS.scanning then return end
-	if NS.scanType ~= "SELECT" then
-		NS.auction.data.raw[NS.query.item["itemId"]][NS.query.page] = {};
-		NS.StatusFrame_Message( string.format( L["Scanning %s: Page %d of %d"], NS.query.item["name"], ( NS.query.page + 1 ), NS.query.totalPages ) );
+function NS.scan:OnAuctionItemListUpdate() -- AUCTION_ITEM_LIST_UPDATE
+	RestockShopEventsFrame:UnregisterEvent( "AUCTION_ITEM_LIST_UPDATE" );
+	if self.ailu == "AUCTION_WON" then self:AfterAuctionWon(); end
+	if self.ailu == "IGNORE" then self.ailu = "LISTEN"; return end
+	if self.status ~= "scanning" then return end
+	self:QueryPageRetrieve();
+end
+function NS.scan:QueryPageRetrieve()
+	if self.status ~= "scanning" then return end
+	--
+	local batchAuctions, totalAuctions = GetNumAuctionItems( "list" );
+	self.query.totalPages = ceil( totalAuctions / NUM_AUCTION_ITEMS_PER_PAGE );
+	--
+	if self.type ~= "SELECT" then
+		NS.auction.data.raw[self.query.item["itemId"]][self.query.page] = {};
+		NS.StatusFrame_Message( string.format( L["Scanning %s: Page %d of %d"], NS.colorCode.quality[self.query.item["quality"]] .. self.query.item["name"] .. "|r", ( self.query.page + 1 ), self.query.totalPages ) );
 	end
-	local incompleteData = false;
-	for i = 1, NS.query.batchAuctions do
-		-- name, texture, count, quality, canUse, level, levelColHeader, minBid, minIncrement, buyoutPrice, bidAmount, highBidder, bidderFullName, owner, ownerFullName, saleStatus, itemId, hasAllInfo
-		local name,texture,count,quality,_,_,_,_,_,buyoutPrice,_,_,_,_,ownerFullName,_,itemId,_ = GetAuctionItemInfo( "list", i );
-		ownerFullName = ownerFullName or owner or "Unknown"; -- Note: Auction may not have an owner(FullName), the character could have been deleted
-		if itemId == NS.query.item["itemId"] and buyoutPrice > 0 then
-			local onHandQty = NS.QOH( NS.query.item["tsmItemString"] );
-			local restockPct = NS.RestockPct( onHandQty, NS.query.item["fullStockQty"] );
-			local itemValue = TSMAPI:GetItemValue( NS.query.item["link"], NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] );
+	for i = 1, batchAuctions do
+		local name,texture,count,quality,_,_,_,_,_,buyoutPrice,_,_,_,_,ownerFullName,_,itemId,_ = GetAuctionItemInfo( "list", i ); -- name, texture, count, quality, canUse, level, levelColHeader, minBid, minIncrement, buyoutPrice, bidAmount, highBidder, bidderFullName, owner, ownerFullName, saleStatus, itemId, hasAllInfo
+		ownerFullName = ownerFullName or "Unknown"; -- Auction may not have an ownerFullName
+		if itemId == self.query.item["itemId"] and buyoutPrice > 0 and ownerFullName ~= GetUnitName( "player" ) then
+			local onHandQty = NS.QOH( self.query.item["tsmItemString"] );
+			local restockPct = NS.RestockPct( onHandQty, self.query.item["fullStockQty"] );
+			local itemValue = TSMAPI:GetItemValue( self.query.item["link"], NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] );
 			local itemPrice = math.ceil( buyoutPrice / count );
-			local maxPrice = NS.MaxPrice( itemValue, restockPct, NS.query.item["maxPricePct"] );
+			local maxPrice = NS.MaxPrice( itemValue, restockPct, self.query.item["maxPricePct"] );
 			local pctItemValue = ( itemPrice * 100 ) / itemValue;
 			local pctMaxPrice = ( itemPrice * 100 ) / maxPrice;
-			if ownerFullName ~= GetUnitName( "player" ) then
-				-- Matching Auction, record info
-				if NS.scanType == "SELECT" then
-					-- SELECT match found?
-					if not NS.auction.selected.found and NS.auction.selected.auction["name"] == name and NS.auction.selected.auction["count"] == count and NS.auction.selected.auction["itemPrice"] == itemPrice then
-						NS.auction.selected.found = true;
-						NS.auction.selected.auction["index"] = i;
-						NS.auction.selected.auction["buyoutPrice"] = buyoutPrice;
-						NS.auction.selected.auction["ownerFullName"] = ownerFullName;
-						break; -- Not recording any additional data, just stop loop and continue on below to page scan completion checks
-					end
-				else
-					-- Record raw data if not a SELECT scan
-					NS.auction.data.raw[itemId][NS.query.page][i] = {
-						["restockPct"] = restockPct,
-						["name"] = name,
-						["texture"] = texture,
-						["count"] = count,
-						["quality"] = quality,
-						["itemPrice"] = itemPrice,
-						["buyoutPrice"] = buyoutPrice,
-						["pctItemValue"] = pctItemValue,
-						["pctMaxPrice"] = pctMaxPrice,
-						["ownerFullName"] = ownerFullName,
-						["itemId"] = itemId,
-						["itemLink"] = NS.query.item["link"],
-						["itemValue"] = itemValue,
-						["tsmItemString"] = NS.query.item["tsmItemString"],
-						["onHandQty"] = onHandQty,
-						["fullStockQty"] = NS.query.item["fullStockQty"],
-						["page"] = NS.query.page,
-						["index"] = i,
-					};
+			if self.type == "SELECT" then
+				if NS.auction.selected.auction["name"] == name and NS.auction.selected.auction["count"] == count and NS.auction.selected.auction["itemPrice"] == itemPrice then
+					-- SELECT match found!
+					NS.auction.selected.found = true;
+					NS.auction.selected.auction["index"] = i;
+					NS.auction.selected.auction["buyoutPrice"] = buyoutPrice;
+					break; -- Not recording any additional data, just stop loop and continue on below to page scan completion checks
 				end
+			else
+				-- Record raw data if NOT SELECT scan
+				NS.auction.data.raw[itemId][self.query.page][i] = {
+					["restockPct"] = restockPct,
+					["name"] = name,
+					["texture"] = texture,
+					["count"] = count,
+					["quality"] = quality,
+					["itemPrice"] = itemPrice,
+					["buyoutPrice"] = buyoutPrice,
+					["pctItemValue"] = pctItemValue,
+					["pctMaxPrice"] = pctMaxPrice,
+					["ownerFullName"] = ownerFullName,
+					["itemId"] = itemId,
+					["itemLink"] = self.query.item["link"],
+					["itemValue"] = itemValue,
+					["tsmItemString"] = self.query.item["tsmItemString"],
+					["onHandQty"] = onHandQty,
+					["fullStockQty"] = self.query.item["fullStockQty"],
+					["page"] = self.query.page,
+					["index"] = i,
+				};
 			end
 		end
 	end
-	-- Page scan data incomplete, requery page
-	if incompleteData and NS.query.batchAttempts < NS.query.maxBatchAttempts then
-		NS.query.batchAttempts = NS.query.batchAttempts + 1;
-		NS.TimeDelayFunction( 0.25, NS.SendAuctionQuery ); -- Delay for missing data to be provided
-		return; -- Stop function, requery in progress
+	-- Update auction results
+	if self.type ~= "SELECT" then
+		NS.AuctionDataGroups_ImportRawData();
+		AuctionFrameRestockShop_ScrollFrame:Update();
+	end
+	-- Paused?
+	if self.type == "SHOP" and self.paused then
+		NS.StatusFrame_Message( BATTLENET_FONT_COLOR_CODE .. L["Scan paused. You can purchase auctions and resume scanning afterwards"] .. "|r" );
+		self.type = nil;
+		self.status = "ready";
+		return; -- Stop function
 	end
 	-- Page scan complete, query next page unless doing SELECT scan
-	if NS.scanType ~= "SELECT" and NS.query.page < ( NS.query.totalPages - 1 ) then -- Subtract 1 because the first page is 0
-		NS.query.page = NS.query.page + 1; -- Increment to next page
-		NS.query.batchAttempts = 1; -- Reset to default
-		NS.SendAuctionQuery(); -- Send query for next page to scan
+	if self.type ~= "SELECT" and self.query.page < ( self.query.totalPages - 1 ) then -- Subtract 1 because the first page is 0
+		self.query.page = self.query.page + 1; -- Increment to next page
+		self:QueryPageSend(); -- Send query for next page to scan
 	else
 	-- Item scan completed
-		NS.items[NS.query.item["itemId"]]["scanTexture"] = "Ready";
-		NS.ScanStop();
-		if NS.scanType == "SELECT" and not NS.auction.selected.found then
-			NS.Print( string.format( L["%s%sx%d|r for %s per item not found, rescanning item"], NS.auction.selected.auction["itemLink"], YELLOW_FONT_COLOR_CODE, NS.auction.selected.auction["count"], TSMAPI:FormatTextMoney( NS.auction.selected.auction["itemPrice"], "|cffffffff", true ) ) );
-			NS.RescanItem();
-			return; -- Stop function, starting rescan
+		if self.type ~= "SELECT" then
+			self.query.page = 0; -- Reset to default
+			self.items[self.query.item["itemId"]]["scanTexture"] = "Ready"; -- Green checkmark!
 		end
-		NS.ScanAuctionQueue(); -- Return to queue
+		self:QueueRun(); -- Return to queue
 	end
 end
-
---
-NS.ScanComplete = function()
-	if NS.scanType == "SHOP" then
-		-- Shop
-		if NS.Count( NS.items ) > 1 then
-			NS.query.item = {}; -- Reset to unlock highlight when scanning more than one item
+function NS.scan:Complete()
+	self.status = "ready"; -- Set to default status, successful SELECT scans become "selected" below
+	--
+	if self.type == "SHOP" then
+		-- SHOP: Clicked the "Shop" button or clicked on an item in the FlyoutPanel
+		if NS.Count( self.items ) > 1 then
+			self.query.item = {}; -- Reset to unlock highlight when scanning more than one item
 		end
 		NS.disableFlyoutChecks = false;
 		AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:Update(); -- Update scanTexture, Checks and Highlight
@@ -1047,27 +1031,37 @@ NS.ScanComplete = function()
 				NS.StatusFrame_Message( L["No auctions were found that matched your settings"] );
 			end
 		end
-	elseif NS.scanType == "SELECT" then
-		-- Select, this scan type only completes if it found what it was looking for, always. Otherwise it would generate a rescan.
+	elseif self.type == "SELECT" then
+		-- SELECT: If it hasn't found what it was looking for, rescan item. Otherwise, set status to "Selected" and activate buyout frame
 		local auction = NS.auction.selected.auction;
-		local _,_,_,hexColor = GetItemQualityColor( auction["quality"] );
-		local BuyoutFrameName = "AuctionFrameRestockShop_DialogFrame_BuyoutFrame";
-		_G[BuyoutFrameName .. "_ItemIcon"]:SetNormalTexture( auction["texture"] );
-		_G[BuyoutFrameName .. "_DescriptionFrameText"]:SetText( "|c" .. hexColor .. auction["name"] .. "|r x " .. auction["count"] );
-		MoneyFrame_Update( BuyoutFrameName .. "_SmallMoneyFrame", auction["buyoutPrice"] );
-		NS.SetCanBid( true );
+		--
+		if not NS.auction.selected.found then
+			NS.Print( string.format( L["%s%sx%d|r for %s is no longer on page %s"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:FormatTextMoney( auction["buyoutPrice"], "|cffffffff", true ), auction["page"] ) );
+			NS.Print( string.format( L["Rescanning %s"], auction["itemLink"] ) );
+			self:RescanItem();
+			return; -- Stop function, starting rescan
+		end
+		--
+		self.status = "selected";
+		local bfn = "AuctionFrameRestockShop_DialogFrame_BuyoutFrame";
+		_G[bfn .. "_ItemIcon"]:SetNormalTexture( auction["texture"] );
+		_G[bfn .. "_DescriptionFrameText"]:SetText( NS.colorCode.quality[auction["quality"]] .. auction["name"] .. "|r x " .. auction["count"] );
+		MoneyFrame_Update( bfn .. "_SmallMoneyFrame", auction["buyoutPrice"] );
 		NS.BuyoutFrame_Activate();
 		AuctionFrameRestockShop_BuyAllButton:Enable();
-	elseif NS.scanType == "RESCAN" then
-		-- Rescanned the specific item from the selected group. If the group exists after a rescan, then reselect it.
-		NS.auction.selected.groupKey = NS.AuctionDataGroups_FindGroupKey( NS.auction.selected.auction["itemId"], NS.auction.selected.auction["name"], NS.auction.selected.auction["count"], NS.auction.selected.auction["itemPrice"] );
+		AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:Update(); -- Update scanTexture
+	elseif self.type == "RESCAN" then
+		-- RESCAN: Rescanned the specific item from the selected group. If the group exists after a rescan, then reselect it.
+		local auction = NS.auction.selected.auction;
+		NS.auction.selected.groupKey = NS.AuctionDataGroups_FindGroupKey( auction["itemId"], auction["name"], auction["count"], auction["itemPrice"] );
 		if not NS.auction.selected.groupKey then
-			NS.Print( string.format( L["%s%sx%d|r for %s per item not found after rescan"], NS.auction.selected.auction["itemLink"], YELLOW_FONT_COLOR_CODE, NS.auction.selected.auction["count"], TSMAPI:FormatTextMoney( NS.auction.selected.auction["itemPrice"], "|cffffffff", true ) ) );
+			NS.Print( string.format( L["%s%sx%d|r for %s is no longer available"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:FormatTextMoney( auction["buyoutPrice"], "|cffffffff", true ) ) );
+			AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:Update(); -- Update scanTexture
 			if next( NS.auction.data.groups.visible ) then
 				if NS.buyAll then
 					NS.AuctionGroup_OnClick( 1 );
 				else
-					NS.Auction_Deselect();
+					NS.AuctionGroup_Deselect();
 					if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
 						NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 					else
@@ -1076,50 +1070,161 @@ NS.ScanComplete = function()
 					AuctionFrameRestockShop_BuyAllButton:Enable();
 				end
 			else
-				NS.Auction_Deselect();
+				NS.AuctionGroup_Deselect();
 				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
 					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 				else
 					NS.StatusFrame_Message( L["No additional auctions matched your settings"] );
 				end
-				NS.BuyAllButton_Reset();
+				AuctionFrameRestockShop_BuyAllButton:Reset();
 			end
 		else
-			NS.Print( string.format( L["%s%sx%d|r for %s per item was found after rescan"], NS.auction.selected.auction["itemLink"], YELLOW_FONT_COLOR_CODE, NS.auction.selected.auction["count"], TSMAPI:FormatTextMoney( NS.auction.selected.auction["itemPrice"], "|cffffffff", true ) ) );
+			NS.Print( string.format( L["%s%sx%d|r for %s was found!"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:FormatTextMoney( auction["buyoutPrice"], "|cffffffff", true ) ) );
 			NS.AuctionGroup_OnClick( NS.auction.selected.groupKey );
 		end
 	end
 	--
-	NS.ShopButton_Reset();
+	if not self.paused then
+		AuctionFrameRestockShop_PauseResumeButton:Reset();
+		AuctionFrameRestockShop_ShopButton:Reset();
+	end
 end
-
---
-NS.RescanItem = function()
-	NS.auction.data.raw = {};
-	NS.query.queue = {};
-	table.insert( NS.query.queue, NS.items[NS.query.item["itemId"]] );
-	NS.scanType = "RESCAN";
-	NS.ScanAuctionQueue();
+function NS.scan:RescanItem()
+	-- Remove item from pause queue
+	if self.paused then
+		self:QueueRemoveItem( self.query.item, self.pauseQueue ); -- Try to remove this item from the pause queue, we don't need to scan it again on resume
+	end
+	-- Remove old result data and rescan item
+	NS.AuctionDataGroups_RemoveItemId( self.query.item["itemId"] );
+	self.query.page = 0;
+	self:QueueAddItem( self.query.item );
+	self:Start( "RESCAN" );
 end
---------------------------------------------------------------------------------------------------------------------------------------------
--- Misc
---------------------------------------------------------------------------------------------------------------------------------------------
-NS.AfterAuctionWon = function()
-	NS.ailu = "IGNORE"; -- Ignore by default, change below where needed.
+function NS.scan:Pause()
+	if #self.queue > 0 or self.query.page < self.query.totalPages then
+		self.pauseQueue = CopyTable( self.queue );
+		self:QueueAddItem( self.query.item, self.pauseQueue );
+		table.sort ( self.pauseQueue, function ( item1, item2 )
+			return item1["name"] > item2["name"]; -- Sort by name Z-A because items are pulled from the end of the queue which will become A-Z
+		end	);
+		self.paused = true;
+		--
+		self.queue = {}; -- Clear queue
+	end
+end
+function NS.scan:Resume()
+	self.queue = CopyTable( self.pauseQueue ); -- Restore queue
+	self.query.page = 0; -- Reset page to default
+	--
+	-- Remove partial results from the next (last before Pause) item in queue, we're about to rescan it for new data and don't want overlap
+	-- Even if the item removed was never scanned at all, because a RescanItem() removed the original, it won't hurt anything to try
+	NS.AuctionDataGroups_RemoveItemId( self.queue[#self.queue]["itemId"] ); -- Only removing the AuctionDataGroups, the item is next in queue to be scanned
+	--
+	self.pauseQueue = {}; -- Clear pause queue
+	self.paused = false; -- Unpause
+	--
+	NS.AuctionGroup_Deselect(); -- Deselect any SELECT scans during Pause
+	--
+	NS.scan:Start( "SHOP" ); -- Resume SHOP scan
+end
+function NS.scan:OnChatMsgSystem( ... ) -- CHAT_MSG_SYSTEM
+	local arg1 = select( 1, ... );
+	if not arg1 then return end
+	if arg1 == ERR_AUCTION_BID_PLACED then
+		-- Bid Acccepted.
+		self.ailu = "IGNORE"; -- Ignore the list update after "Bid accepted."
+		RestockShopEventsFrame:RegisterEvent( "AUCTION_ITEM_LIST_UPDATE" );
+		RestockShopEventsFrame:UnregisterEvent( "UI_ERROR_MESSAGE" );
+	elseif arg1:match( string.gsub( ERR_AUCTION_WON_S, "%%s", "" ) ) and arg1 == string.format( ERR_AUCTION_WON_S, NS.auction.selected.auction["name"] ) then
+		-- You won an auction for %s
+		self.ailu = "AUCTION_WON"; -- Helps decide to Ignore or Listen to the list update after "You won an auction for %s"
+		RestockShopEventsFrame:RegisterEvent( "AUCTION_ITEM_LIST_UPDATE" );
+		RestockShopEventsFrame:UnregisterEvent( "CHAT_MSG_SYSTEM" );
+	end
+end
+function NS.scan:OnUIErrorMessage( ... ) -- UI_ERROR_MESSAGE
+	local arg1 = select( 1, ... );
+	if not arg1 or (
+	arg1 ~= ERR_ITEM_NOT_FOUND and
+	arg1 ~= ERR_AUCTION_HIGHER_BID and
+	arg1 ~= ERR_AUCTION_BID_OWN and
+	arg1 ~= ERR_NOT_ENOUGH_MONEY and
+	arg1 ~= ERR_ITEM_MAX_COUNT
+	) then
+		return;
+	end
+	--
+	RestockShopEventsFrame:UnregisterEvent( "UI_ERROR_MESSAGE" );
+	NS.scan.status = "ready"; -- buying failed
+	--
+	if arg1 == ERR_ITEM_NOT_FOUND or arg1 == ERR_AUCTION_HIGHER_BID or arg1 == ERR_AUCTION_BID_OWN then
+		if arg1 == ERR_ITEM_NOT_FOUND or arg1 == ERR_AUCTION_HIGHER_BID then
+			NS.Print( RED_FONT_COLOR_CODE .. L["That auction is no longer available"] .. "|r" );
+		elseif arg1 == ERR_AUCTION_BID_OWN then
+			NS.Print( RED_FONT_COLOR_CODE .. L["That auction belongs to a character on your account"] .. "|r" );
+		end
+		--
+		NS.auction.data.groups.visible[NS.auction.selected.groupKey]["numAuctions"] = NS.auction.data.groups.visible[NS.auction.selected.groupKey]["numAuctions"] - 1;
+		--
+		if NS.auction.data.groups.visible[NS.auction.selected.groupKey]["numAuctions"] == 0 then
+			-- Group removed
+			table.remove( NS.auction.data.groups.visible, NS.auction.selected.groupKey );
+			NS.AuctionGroup_Deselect();
+			if next( NS.auction.data.groups.visible ) then
+				-- More auctions exist
+				if NS.buyAll then
+					NS.AuctionGroup_OnClick( 1 );
+				else
+					AuctionFrameRestockShop_ScrollFrame:Update();
+					if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+						NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
+					else
+						NS.StatusFrame_Message( L["Select an auction to buy or click \"Buy All\""] );
+					end
+					AuctionFrameRestockShop_BuyAllButton:Enable();
+				end
+			else
+				-- No auctions exist
+				AuctionFrameRestockShop_ScrollFrame:Update();
+				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
+				else
+					NS.StatusFrame_Message( L["No additional auctions matched your settings"] );
+				end
+				AuctionFrameRestockShop_BuyAllButton:Reset();
+			end
+		else
+			-- Single auction removed
+			table.remove( NS.auction.data.groups.visible[NS.auction.selected.groupKey]["auctions"] );
+			NS.AuctionGroup_OnClick( NS.auction.selected.groupKey );
+		end
+	elseif arg1 == ERR_NOT_ENOUGH_MONEY then -- Not Enough Money
+		NS.StatusFrame_Message( L["You don't have enough money to buy that auction"] );
+		AuctionFrameRestockShop_BuyAllButton:Enable();
+	elseif arg1 == ERR_ITEM_MAX_COUNT then -- Item Max Count
+		NS.StatusFrame_Message( L["You can't carry anymore of that item"] );
+		AuctionFrameRestockShop_BuyAllButton:Enable();
+	end
+	--
+	AuctionFrameRestockShop_ShopButton:Enable();
+end
+function NS.scan:AfterAuctionWon()
+	self.ailu = "IGNORE"; -- Ignore by default, change below where needed.
 	-- NextAuction()
 	local function NextAuction( groupKey )
 		local auction = NS.auction.data.groups.visible[groupKey]["auctions"][#NS.auction.data.groups.visible[groupKey]["auctions"]];
 		if NS.auction.selected.auction["itemId"] == auction["itemId"] and NS.auction.selected.auction["page"] == auction["page"] then
-			NS.query.page = auction["page"];
+			--self.query.item = [same item]
+			self.query.page = auction["page"];
 			NS.auction.selected.found = false;
 			NS.auction.selected.groupKey = groupKey;
-			NS.auction.selected.auction = auction; -- Cannot use index, ownerFullName, or buyoutPrice yet, these may change after scanning the page
+			NS.auction.selected.auction = auction; -- Cannot use index or buyoutPrice yet, these can change after scanning the page
 			if NS.buyAll and groupKey == 1 then
 				AuctionFrameRestockShop_ScrollFrame:SetVerticalScroll( 0 ); -- Scroll to top when first group is selected during Buy All
 			end
 			AuctionFrameRestockShop_ScrollFrame:Update(); -- Highlight the selected group
-			NS.ScanStart();
-			NS.ailu = "LISTEN";
+			self.ailu = "LISTEN";
+			self:Start( "SELECT_UPDATE" );
 		else
 			NS.AuctionGroup_OnClick( groupKey ); -- Item wasn't the same or wasn't on the same page, this will send a new QueryAuctionItems()
 		end
@@ -1131,7 +1236,7 @@ NS.AfterAuctionWon = function()
 			if NS.buyAll then
 				NextAuction( 1 );
 			else
-				NS.Auction_Deselect();
+				NS.AuctionGroup_Deselect();
 				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
 					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 				else
@@ -1141,13 +1246,13 @@ NS.AfterAuctionWon = function()
 			end
 		else
 			-- No auctions exist
-			NS.Auction_Deselect();
+			NS.AuctionGroup_Deselect();
 			if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
 				NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 			else
 				NS.StatusFrame_Message( L["No additional auctions matched your settings"] );
 			end
-			NS.BuyAllButton_Reset();
+			AuctionFrameRestockShop_BuyAllButton:Reset();
 		end
 	end
 	-- Full Stock notice
@@ -1155,7 +1260,7 @@ NS.AfterAuctionWon = function()
 		NS.Print( string.format( L["You reached the %sFull Stock|r of %s%d|r on %s"], NORMAL_FONT_COLOR_CODE, NS.colorCode.full, NS.auction.selected.auction["fullStockQty"], NS.auction.selected.auction["itemLink"] ) );
 	end
 	--
-	NS.buying = false;
+	NS.scan.status = "ready"; -- buying completed
 	AuctionFrameRestockShop_ShopButton:Enable();
 	--
 	NS.auction.data.groups.visible[NS.auction.selected.groupKey]["numAuctions"] = NS.auction.data.groups.visible[NS.auction.selected.groupKey]["numAuctions"] - 1;
@@ -1185,7 +1290,9 @@ NS.AfterAuctionWon = function()
 	end
 end
 
---
+--------------------------------------------------------------------------------------------------------------------------------------------
+-- Misc
+--------------------------------------------------------------------------------------------------------------------------------------------
 NS.AddTooltipData = function( self, ... )
 	if ( not NS.db["itemTooltipShoppingListSettings"] and not NS.db["itemTooltipItemId"] ) or NS.tooltipAdded then return end
 	-- Get Item Id
@@ -1314,18 +1421,6 @@ NS.FindItemKey = function( itemId, shoppingList )
 end
 
 --
-NS.SetCanBid = function( enable )
-	if enable then
-		AuctionFrameRestockShop_DialogFrame_BuyoutFrame_AcceptButton:Enable();
-		AuctionFrameRestockShop_DialogFrame_BuyoutFrame_CancelButton:Enable();
-	else
-		AuctionFrameRestockShop_DialogFrame_BuyoutFrame_AcceptButton:Disable();
-		AuctionFrameRestockShop_DialogFrame_BuyoutFrame_CancelButton:Disable();
-	end
-	NS.canBid = enable;
-end
-
---
 NS.TSMItemString = function( itemLink )
 	local itemString = string.match( itemLink, "item[%-?%d:]+" );
 	local s1,s2,s3,s4,s5,s6,s7,s8 = strsplit( ":", itemString );
@@ -1402,9 +1497,7 @@ end
 --------------------------------------------------------------------------------------------------------------------------------------------
 NS.SlashCmdHandler = function( msg )
 	if msg == "acceptbuttonclick" then
-		if NS.canBid then
-			AuctionFrameRestockShop_DialogFrame_BuyoutFrame_AcceptButton:Click();
-		end
+		AuctionFrameRestockShop_DialogFrame_BuyoutFrame_AcceptButton:Click();
 		return;
 	end
 	-- Switch to "Browse" AuctionFrame tab
@@ -1569,6 +1662,9 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 		setPoint = { "TOPLEFT", "$parent_ScrollFrame", "TOPLEFT" },
 		fontObject = "GameFontHighlightLarge",
 		justifyH = "CENTER",
+		OnShow = function( self )
+			_G[self:GetName() .. "Text"]:SetText( string.format( "%s\n\n%s   =   %s%d|r", NS.db["shoppingLists"][NS.currentListKey]["name"], NS.ListSummary(), NORMAL_FONT_COLOR_CODE, #NS.db["shoppingLists"][NS.currentListKey]["items"] ) );
+		end,
 	} );
 	NS.Frame( "_DialogFrame", AuctionFrameRestockShop, {
 		size = { 733, 54 },
@@ -1585,7 +1681,7 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 			if NS.buyAll then
 				AuctionFrameRestockShop_BuyAllButton:Click();
 			else
-				NS.Auction_Deselect();
+				NS.AuctionGroup_Deselect();
 				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
 					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 				else
@@ -1598,9 +1694,10 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 		size = { 120, 30 },
 		setPoint = { "RIGHT", "#sibling", "LEFT", -10, 0 },
 		OnClick = function( self )
-			if NS.canBid then
-				NS.SetCanBid( false );
-				NS.buying = true;
+			if NS.scan.status == "selected" then
+				NS.scan.status = "buying";
+				AuctionFrameRestockShop_DialogFrame_BuyoutFrame_AcceptButton:Disable();
+				AuctionFrameRestockShop_DialogFrame_BuyoutFrame_CancelButton:Disable();
 				AuctionFrameRestockShop_ShopButton:Disable();
 				AuctionFrameRestockShop_BuyAllButton:Disable();
 				RestockShopEventsFrame:RegisterEvent( "CHAT_MSG_SYSTEM" );
@@ -1656,7 +1753,7 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 				else
 					NS.StatusFrame_Message( L["Buy All has been stopped"] .. ". " .. L["Select an auction to buy or click \"Buy All\""] );
 				end
-				NS.Auction_Deselect();
+				NS.AuctionGroup_Deselect();
 			else
 				NS.buyAll = true;
 				self:SetText( L["Stop"] );
@@ -1664,34 +1761,32 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 				NS.AuctionGroup_OnClick( 1 );
 			end
 		end,
+		OnLoad = function( self )
+			function self:Reset()
+				NS.buyAll = false;
+				self:Disable();
+				self:SetText( L["Buy All"] );
+			end
+		end,
 	} );
 	NS.Button( "_ShopButton", AuctionFrameRestockShop, L["Shop"], {
 		size = { 80, 22 },
 		setPoint = { "RIGHT", "#sibling", "LEFT" },
-		OnClick = function ( self )
-			if NS.scanning then
-				NS.Reset();
+		OnClick = function( self )
+			if not NS.scan.paused and ( NS.scan.status == "ready" or NS.scan.status == "selected" ) then
+				-- Shop
+				NS.Reset(); -- Resetting for fresh SHOP scan
+				NS.scan:QueueAddList();
+				NS.scan:Start( "SHOP" );
 			else
-				NS.items = {};
-				NS.query.queue= {};
-				NS.auction.data.raw = {};
-				NS.auction.data.groups.visible = {};
-				NS.auction.data.groups.overstock = {};
-				NS.Auction_Deselect();
-				AuctionFrameRestockShop_ScrollFrame:Update();
-				AuctionFrameRestockShop_ListStatusFrame:Hide();
-				NS.BuyAllButton_Reset();
-				AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:SetVerticalScroll( 0 );
-				for k, v in ipairs( NS.db["shoppingLists"][NS.currentListKey]["items"] ) do
-					table.insert( NS.query.queue, v );
-					NS.items[v["itemId"]] = v;
-					NS.items[v["itemId"]]["scanTexture"] = "Waiting";
-				end
-				table.sort ( NS.query.queue, function ( item1, item2 )
-					return item1["name"] > item2["name"]; -- Sort by name Z-A because items are pulled from the end of the queue which will become A-Z
-				end	);
-				NS.scanType = "SHOP";
-				NS.ScanAuctionQueue();
+				-- Abort
+				NS.Reset();
+			end
+		end,
+		OnLoad = function( self )
+			function self:Reset()
+				self:Enable();
+				self:SetText( L["Shop"] );
 			end
 		end,
 	} );
@@ -1749,8 +1844,8 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 				local flyoutWidth = ( function() if numItems > sf.numToDisplay then return 274 else return 247 end end )();
 				AuctionFrameRestockShop_FlyoutPanel:SetWidth( flyoutWidth );
 				-- Adjust vertical scroll if doing ShopButton scan
-				if NS.scanning and NS.scanType == "SHOP" and NS.Count( NS.items ) > 1 then
-					local vScroll = ( numItems - #NS.query.queue - sf.numToDisplay ) * sf.buttonHeight;
+				if NS.scan.status == "scanning" and NS.scan.type == "SHOP" and NS.Count( NS.scan.items ) > 1 then
+					local vScroll = ( numItems - #NS.scan.queue - sf.numToDisplay ) * sf.buttonHeight;
 					if vScroll > 0 and vScroll > sf:GetVerticalScroll() then
 						sf:SetVerticalScroll( vScroll );
 					end
@@ -1766,7 +1861,7 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 							NS.FlyoutPanelItem_OnClick( k );
 						end
 						local IsHighlightLocked = function()
-							if ( NS.scanType == "SHOP" or NS.Count( NS.items ) == 1 ) and NS.query.item["itemId"] == items[k]["itemId"] then
+							if ( NS.scan.type == "SHOP" or NS.Count( NS.scan.items ) == 1 ) and NS.scan.query.item["itemId"] == items[k]["itemId"] then
 								return true;
 							else
 								return false;
@@ -1795,10 +1890,10 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 						_G[bn .. "_RestockStatus"]:SetText( restockStatus );
 						--
 						local scanTexture;
-						if not NS.items[items[k]["itemId"]] then
+						if not NS.scan.items[items[k]["itemId"]] then
 							scanTexture = "Waiting";
 						else
-							scanTexture = NS.items[items[k]["itemId"]]["scanTexture"];
+							scanTexture = NS.scan.items[items[k]["itemId"]]["scanTexture"];
 						end
 						_G[bn .. "_ScanTexture"]:SetTexture( "Interface\\RAIDFRAME\\ReadyCheck-" .. scanTexture );
 						--
@@ -1884,69 +1979,30 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 		highlightTexture = "Interface\\FriendsFrame\\UI-FriendsList-Highlight",
 		tooltip = function()
 			local tooltip = string.format( L["%sHide Overpriced Stacks|r\n\nHides auctions whose %% Item Value exceeds\nthe current max price: %sLow|r, %sNorm|r, or %sFull|r %%"], RED_FONT_COLOR_CODE, NS.colorCode.low, NS.colorCode.norm, NS.colorCode.full );
-			local numAuctions = 0;
-			if #NS.auction.data.groups.overpriced > 0 then
-				for _,group in ipairs( NS.auction.data.groups.overpriced ) do
-					numAuctions = numAuctions + group["numAuctions"];
-				end
-			end
-			if not NS.db["hideOverpricedStacks"] or NS.scanning or AuctionFrameRestockShop_ListStatusFrame:IsShown() then
+			if not NS.db["hideOverpricedStacks"] or AuctionFrameRestockShop_ListStatusFrame:IsShown() then
 				return tooltip;
+			elseif NS.scan.status == "scanning" then
+				return tooltip .. "\n\n" .. RED_FONT_COLOR_CODE .. L["Scanning..."] .. "|r";
 			else
-				return tooltip .. "\n\n" .. RED_FONT_COLOR_CODE .. string.format( L["%s Auctions Hidden"], numAuctions ) .. "|r";
+				local numAuctions = 0;
+				if next( NS.auction.data.groups.overpriced ) then
+					for _,group in ipairs( NS.auction.data.groups.overpriced ) do
+						numAuctions = numAuctions + group["numAuctions"];
+					end
+				end
+				return tooltip .. "\n\n" .. RED_FONT_COLOR_CODE .. string.format( L["%d Auctions Hidden"], numAuctions ) .. "|r";
 			end
 		end,
 		OnClick = function ( self )
-			if NS.scanning then
-				NS.Print( L["Selection ignored, busy scanning"] );
-				return; -- Stop function
-			end
-			--
-			AuctionFrameRestockShop_DialogFrame_BuyoutFrame_CancelButton:Click();
-			--
-			NS.AuctionDataGroups_ShowOverpricedStacks();
-			NS.AuctionDataGroups_ShowOverstockStacks();
-			--
-			if NS.db["hideOverpricedStacks"] then
-				-- Show
-				NS.AuctionDataGroups_Sort();
-				NS.db["hideOverpricedStacks"] = false;
-				self:UnlockHighlight();
-			else
-				-- Hide
-				NS.AuctionDataGroups_HideOverpricedStacks();
-				NS.db["hideOverpricedStacks"] = true;
-				self:LockHighlight();
-			end
-			--
-			if NS.db["hideOverstockStacks"] then
-				NS.AuctionDataGroups_HideOverstockStacks();
-			end
-			--
-			GameTooltip:SetText( self.tooltip() );
-			--
-			if next( NS.auction.data.groups.visible ) then
-				-- Auctions shown
-				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
-					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
-				else
-					NS.StatusFrame_Message( L["Select an auction to buy or click \"Buy All\""] );
-				end
-				AuctionFrameRestockShop_BuyAllButton:Enable();
-			elseif next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
-				-- Auctions hidden
-				NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
-				AuctionFrameRestockShop_BuyAllButton:Disable();
-			elseif next( NS.items ) then
-				-- Auctions scanned, but none available
-				NS.StatusFrame_Message( L["No additional auctions matched your settings"] );
-				AuctionFrameRestockShop_BuyAllButton:Disable();
-			end
-			AuctionFrameRestockShop_ScrollFrame:SetVerticalScroll( 0 );
-			AuctionFrameRestockShop_ScrollFrame:Update();
+			NS.HideOverpriceOverstockButton_OnClick( self, "overpriced" );
 		end,
 		OnLoad = function( self )
 			self.tooltipAnchor = { self, "ANCHOR_BOTTOMRIGHT", 3, 32 };
+			function self:Reset()
+				if NS.db["hideOverpricedStacks"] then
+					self:LockHighlight();
+				end
+			end
 		end,
 	} );
 	NS.Button( "_HideOverstockStacksButton", AuctionFrameRestockShop, nil, {
@@ -1958,69 +2014,67 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 		highlightTexture = "Interface\\FriendsFrame\\UI-FriendsList-Highlight",
 		tooltip = function()
 			local tooltip =  string.format( L["%sHide Overstock Stacks|r\n\nHides auctions that when purchased would cause you\nto exceed your \"Full Stock\" by more than %s%s%%|r"], NS.colorCode.full, NS.colorCode.full, NS.db["shoppingLists"][NS.currentListKey]["hideOverstockStacksPct"] );
-			local numAuctions = 0;
-			if #NS.auction.data.groups.overstock > 0 then
-				for _,group in ipairs( NS.auction.data.groups.overstock ) do
-					numAuctions = numAuctions + group["numAuctions"];
-				end
-			end
-			if not NS.db["hideOverstockStacks"] or NS.scanning or AuctionFrameRestockShop_ListStatusFrame:IsShown() then
+			if not NS.db["hideOverstockStacks"] or AuctionFrameRestockShop_ListStatusFrame:IsShown() then
 				return tooltip;
+			elseif NS.scan.status == "scanning" then
+				return tooltip .. "\n\n" .. NS.colorCode.full .. L["Scanning..."] .. "|r";
 			else
-				return tooltip .. "\n\n" .. NS.colorCode.full .. string.format( L["%s Auctions Hidden"], numAuctions ) .. "|r";
+				local numAuctions = 0;
+				if next( NS.auction.data.groups.overstock ) then
+					for _,group in ipairs( NS.auction.data.groups.overstock ) do
+						numAuctions = numAuctions + group["numAuctions"];
+					end
+				end
+				return tooltip .. "\n\n" .. NS.colorCode.full .. string.format( L["%d Auctions Hidden"], numAuctions ) .. "|r";
 			end
 		end,
 		OnClick = function ( self )
-			if NS.scanning then
-				NS.Print( L["Selection ignored, busy scanning"] );
-				return; -- Stop function
-			end
-			--
-			AuctionFrameRestockShop_DialogFrame_BuyoutFrame_CancelButton:Click();
-			--
-			NS.AuctionDataGroups_ShowOverpricedStacks();
-			NS.AuctionDataGroups_ShowOverstockStacks();
-			--
-			if NS.db["hideOverstockStacks"] then
-				-- Show
-				NS.AuctionDataGroups_Sort();
-				NS.db["hideOverstockStacks"] = false;
-				self:UnlockHighlight();
-			else
-				-- Hide
-				NS.AuctionDataGroups_HideOverstockStacks();
-				NS.db["hideOverstockStacks"] = true;
-				self:LockHighlight();
-			end
-			--
-			if NS.db["hideOverpricedStacks"] then
-				NS.AuctionDataGroups_HideOverpricedStacks();
-			end
-			--
-			GameTooltip:SetText( self.tooltip() );
-			--
-			if next( NS.auction.data.groups.visible ) then
-				-- Auctions shown
-				if next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.overpriced ) then
-					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
-				else
-					NS.StatusFrame_Message( L["Select an auction to buy or click \"Buy All\""] );
-				end
-				AuctionFrameRestockShop_BuyAllButton:Enable();
-			elseif next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.overpriced ) then
-				-- Auctions hidden
-				NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
-				AuctionFrameRestockShop_BuyAllButton:Disable();
-			elseif next( NS.items ) then
-				-- Auctions scanned, but none available
-				NS.StatusFrame_Message( L["No additional auctions matched your settings"] );
-				AuctionFrameRestockShop_BuyAllButton:Disable();
-			end
-			AuctionFrameRestockShop_ScrollFrame:SetVerticalScroll( 0 );
-			AuctionFrameRestockShop_ScrollFrame:Update();
+			NS.HideOverpriceOverstockButton_OnClick( self, "overstock" );
 		end,
 		OnLoad = function( self )
 			self.tooltipAnchor = { self, "ANCHOR_BOTTOMRIGHT", 3, 32 };
+			function self:Reset()
+				if NS.db["hideOverstockStacks"] then
+					self:LockHighlight();
+				end
+			end
+		end,
+	} );
+	NS.Button( "_PauseResumeButton", AuctionFrameRestockShop, nil, {
+		template = false,
+		size = { 32, 32 },
+		setPoint = { "TOP", "#sibling", "BOTTOM", 0, -3 },
+		disabledTexture = "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Disabled",
+		normalTexture = "Interface\\TimeManager\\PauseButton",
+		highlightTexture = "Interface\\Buttons\\UI-Common-MouseHilight",
+		tooltip = function()
+			if not NS.scan.paused then
+				return BATTLENET_FONT_COLOR_CODE .. L["Pause"] .. "|r\n\n" .. L["You may pause your scan to purchase\nauctions and resume scanning afterwards"];
+			else
+				return BATTLENET_FONT_COLOR_CODE .. L["Resume"] .. "|r\n\n" .. L["You may resume scanning when you're ready"];
+			end
+		end,
+		OnClick = function( self )
+			if not NS.scan.paused then
+				-- Pause
+				self:SetNormalTexture( "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up" );
+				self:LockHighlight();
+				NS.scan:Pause();
+			else
+				-- Resume
+				self:SetNormalTexture( "Interface\\TimeManager\\PauseButton" );
+				self:UnlockHighlight();
+				NS.scan:Resume();
+			end
+			GameTooltip:SetText( self.tooltip() );
+		end,
+		OnLoad = function( self )
+			self.tooltipAnchor = { self, "ANCHOR_BOTTOMRIGHT", 3, 32 };
+			function self:Reset()
+				self:Disable();
+				self:SetNormalTexture( "Interface\\TimeManager\\PauseButton" );
+				self:UnlockHighlight();
+			end
 		end,
 	} );
 	-- Add "RestockShop" tab to AuctionFrame
@@ -2046,9 +2100,9 @@ NS.Frame( "RestockShopEventsFrame", UIParent, {
 	OnEvent = function ( self, event, ... )
 		if			event == "ADDON_LOADED"				then	NS.OnAddonLoaded();
 			elseif	event == "PLAYER_LOGIN"				then	NS.OnPlayerLogin();
-			elseif	event == "AUCTION_ITEM_LIST_UPDATE"	then	NS.OnAuctionItemListUpdate();
-			elseif	event == "CHAT_MSG_SYSTEM"			then	NS.OnChatMsgSystem( ... );
-			elseif	event == "UI_ERROR_MESSAGE"			then	NS.OnUIErrorMessage( ... );
+			elseif	event == "AUCTION_ITEM_LIST_UPDATE"	then	NS.scan:OnAuctionItemListUpdate();
+			elseif	event == "CHAT_MSG_SYSTEM"			then	NS.scan:OnChatMsgSystem( ... );
+			elseif	event == "UI_ERROR_MESSAGE"			then	NS.scan:OnUIErrorMessage( ... );
 		end
 	end,
 	OnLoad = function( self )
