@@ -1030,34 +1030,18 @@ NS.options.cfg = {
 				};
 			end,
 			Refresh			= function( SubFrame )
-				local dm, sfn = nil, SubFrame:GetName();
+				local sfn = SubFrame:GetName();
 				local ofn = sfn .. "Options";
-				-- Dropdown Menus
-				dm = _G[ofn .. "ItemValueSrcDropDownMenu"];
-				UIDropDownMenu_Initialize( dm, NS.DropDownMenu_Initialize );
-				UIDropDownMenu_SetSelectedValue( dm, NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] );
 				--
-				dm = _G[ofn .. "QOHAllCharactersDropDownMenu"];
-				UIDropDownMenu_Initialize( dm, NS.DropDownMenu_Initialize );
-				UIDropDownMenu_SetSelectedValue( dm, NS.db["shoppingLists"][NS.currentListKey]["qohAllCharacters"] );
+				_G[ofn .. "ItemValueSrcDropDownMenu"]:Reset( NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] );
+				_G[ofn .. "QOHAllCharactersDropDownMenu"]:Reset( NS.db["shoppingLists"][NS.currentListKey]["qohAllCharacters"] );
+				_G[ofn .. "LowStockPctDropDownMenu"]:Reset( NS.db["shoppingLists"][NS.currentListKey]["lowStockPct"] );
+				_G[ofn .. "HideOverstockStacksPctDropDownMenu"]:Reset( NS.db["shoppingLists"][NS.currentListKey]["hideOverstockStacksPct"] );
 				--
-				dm = _G[ofn .. "LowStockPctDropDownMenu"];
-				UIDropDownMenu_Initialize( dm, NS.DropDownMenu_Initialize );
-				UIDropDownMenu_SetSelectedValue( dm, NS.db["shoppingLists"][NS.currentListKey]["lowStockPct"] );
-				--
-				dm = _G[ofn .. "HideOverstockStacksPctDropDownMenu"];
-				UIDropDownMenu_Initialize( dm, NS.DropDownMenu_Initialize );
-				UIDropDownMenu_SetSelectedValue( dm, NS.db["shoppingLists"][NS.currentListKey]["hideOverstockStacksPct"] );
-				--
-				dm = _G[sfn .. "ShoppingListsDropDownMenu"];
-				UIDropDownMenu_Initialize( dm, NS.DropDownMenu_Initialize );
-				UIDropDownMenu_SetSelectedValue( dm, NS.currentListKey );
-				-- Check Buttons
 				_G[ofn .. "QOHGuildsCheckButton"]:SetChecked( NS.db["shoppingLists"][NS.currentListKey]["qohGuilds"] );
-				-- ScrollFrame
-				sf = _G[sfn .. "ScrollFrame"];
-				sf:SetVerticalScroll( 0 );
-				sf:Update();
+				--
+				_G[sfn .. "ShoppingListsDropDownMenu"]:Reset( NS.currentListKey );
+				_G[sfn .. "ScrollFrame"]:Reset();
 			end,
 		},
 		{

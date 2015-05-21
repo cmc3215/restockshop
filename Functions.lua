@@ -70,6 +70,9 @@ NS.TextFrame = function( name, parent, text, set )
 	end
 	fs:SetPoint( "BOTTOMRIGHT" );
 	--
+	if set.OnShow then
+		f:SetScript( "OnShow", set.OnShow );
+	end
 	return f;
 end
 
@@ -153,6 +156,9 @@ NS.Button = function( name, parent, text, set )
 	if set.highlightTexture then
 		f:SetHighlightTexture( set.highlightTexture, "ADD" );
 	end
+	if set.disabledTexture then
+		f:SetDisabledTexture( set.disabledTexture );
+	end
 	-- Tooltip
 	if set.tooltip then
 		NS.Tooltip( f, set.tooltip, set.tooltipAnchor or { f, "ANCHOR_TOPRIGHT", 3, 0 } );
@@ -162,6 +168,9 @@ NS.Button = function( name, parent, text, set )
 		f:HookScript( "OnClick", set.OnClick );
 	else
 		f:SetScript( "OnClick", set.OnClick );
+	end
+	if set.OnDisable then
+		f:SetScript( "OnDisable", set.OnDisable );
 	end
 	if set.OnLoad then
 		set.OnLoad( f );
@@ -244,6 +253,11 @@ NS.ScrollFrame = function( name, parent, set )
 	tx:SetSize( 31, 100 );
 	tx:SetPoint( "BOTTOMLEFT", "$parent", "BOTTOMRIGHT", -2, -2 );
 	tx:SetTexCoord( 0.515625, 1.0, 0, 0.4140625 );
+	--
+	function f:Reset()
+		self:SetVerticalScroll( 0 );
+		self:Update();
+	end
 	return f;
 end
 
@@ -311,6 +325,12 @@ NS.DropDownMenu = function( name, parent, set )
 	f.OnClick = set.OnClick or nil;
 	f.db = set.db or nil;
 	f.dbpc = set.dbpc or nil;
+	--
+	function f:Reset( selectedValue )
+		UIDropDownMenu_Initialize( self, NS.DropDownMenu_Initialize );
+		UIDropDownMenu_SetSelectedValue( self, selectedValue );
+	end
+	--
 	return f;
 end
 
