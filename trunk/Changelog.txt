@@ -1,3 +1,7 @@
+**3.7**
+* Release date: 05/21/2015
+* Updates to TOC
+
 **3.6**
 * Release date: 05/21/2015
 * Auction results are now updated during scanning, instead of waiting for the scan to complete
