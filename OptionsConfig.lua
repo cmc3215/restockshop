@@ -11,7 +11,7 @@ NS.options.cfg = {
 	mainFrame = {
 		width		= 848,
 		height		= 590,
-		frameStrata	= "HIGH",
+		frameStrata	= "MEDIUM",
 		Init		= function( MainFrame ) end,
 		OnShow		= function( MainFrame )
 			MainFrame:ClearAllPoints();
