@@ -33,6 +33,7 @@ MainFrame = NS.Frame( NS.addon .. "OptionsMainFrame", UIParent, {
 		end
 	end,
 	OnLoad = function( self )
+		self:SetToplevel( true );
 		ButtonFrameTemplate_HidePortrait( self );
 		self.Inset:SetPoint( "TOPLEFT", 4, -50 );
 		self:RegisterEvent( "PLAYER_LOGIN" );
