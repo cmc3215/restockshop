@@ -1,3 +1,8 @@
+**3.9**
+* Release date: 12/21/2015
+* Updated API calls for TSM 3; the addon TradeSkillMaster_ItemTracker is no longer required as it's been rolled into TSM
+* WARNING: TSM 2 no longer supported
+
 **3.8**
 * Release date: 06/23/2015
 * Updated TOC for patch 6.2
