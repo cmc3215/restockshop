@@ -1036,7 +1036,7 @@ function NS.scan:Complete()
 		local auction = NS.auction.selected.auction;
 		--
 		if not NS.auction.selected.found then
-			NS.Print( string.format( L["%s%sx%d|r for %s is no longer on page %s"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:FormatTextMoney( auction["buyoutPrice"], "|cffffffff", true ), auction["page"] ) );
+			NS.Print( string.format( L["%s%sx%d|r for %s is no longer on page %s"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:MoneyToString( auction["buyoutPrice"], "|cffffffff", "OPT_PAD" ), auction["page"] ) );
 			NS.Print( string.format( L["Rescanning %s"], auction["itemLink"] ) );
 			self:RescanItem();
 			return; -- Stop function, starting rescan
@@ -1055,7 +1055,7 @@ function NS.scan:Complete()
 		local auction = NS.auction.selected.auction;
 		NS.auction.selected.groupKey = NS.AuctionDataGroups_FindGroupKey( auction["itemId"], auction["name"], auction["count"], auction["itemPrice"] );
 		if not NS.auction.selected.groupKey then
-			NS.Print( string.format( L["%s%sx%d|r for %s is no longer available"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:FormatTextMoney( auction["buyoutPrice"], "|cffffffff", true ) ) );
+			NS.Print( string.format( L["%s%sx%d|r for %s is no longer available"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:MoneyToString( auction["buyoutPrice"], "|cffffffff", "OPT_PAD" ) ) );
 			AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:Update(); -- Update scanTexture
 			if next( NS.auction.data.groups.visible ) then
 				if NS.buyAll then
@@ -1079,7 +1079,7 @@ function NS.scan:Complete()
 				AuctionFrameRestockShop_BuyAllButton:Reset();
 			end
 		else
-			NS.Print( string.format( L["%s%sx%d|r for %s was found!"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:FormatTextMoney( auction["buyoutPrice"], "|cffffffff", true ) ) );
+			NS.Print( string.format( L["%s%sx%d|r for %s was found!"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:MoneyToString( auction["buyoutPrice"], "|cffffffff", "OPT_PAD" ) ) );
 			NS.AuctionGroup_OnClick( NS.auction.selected.groupKey );
 		end
 	end
@@ -1313,12 +1313,12 @@ NS.AddTooltipData = function( self, ... )
 			local onHandQty = NS.QOH( item["tsmItemString"] );
 			local restockPct = NS.RestockPct( onHandQty, item["fullStockQty"] );
 			local maxPrice, status = NS.MaxPrice( itemValue, restockPct, item["maxPricePct"], "returnStatus" );
-			maxPrice = ( maxPrice > 0 ) and ( TSMAPI:FormatTextMoney( maxPrice, "|cffffffff", true ) .. " " ) or ""; -- If full stock and no full price then leave it blank
+			maxPrice = ( maxPrice > 0 ) and ( TSMAPI:MoneyToString( maxPrice, "|cffffffff", "OPT_PAD" ) .. " " ) or ""; -- If full stock and no full price then leave it blank
 			local restockColor = NS.RestockColor( "code", restockPct, item["maxPricePct"] );
 			restockPct = restockColor .. math.floor( restockPct ) .. "%|r";
 			status = restockColor .. L[status] .. "|r";
 			if itemValue ~= 0 then
-				itemValue = TSMAPI:FormatTextMoney( itemValue, "|cffffffff", true );
+				itemValue = TSMAPI:MoneyToString( itemValue, "|cffffffff", "OPT_PAD" );
 			else
 				itemValue, maxPrice = nil, nil;
 			end
@@ -1430,25 +1430,20 @@ end
 --
 NS.QOH = function( tsmItemString )
 	local qoh = 0;
-	local currentPlayerTotal, otherPlayersTotal = TSMAPI:ModuleAPI( "ItemTracker", "playertotal", tsmItemString ); -- Bags, Bank, and Mail
+	local currentPlayerTotal, otherPlayersTotal, allPlayersAuctionsTotal, otherPlayersAuctionsTotal = TSMAPI.Inventory:GetPlayerTotals( tsmItemString ); -- numPlayer, numAlts, numAuctions, numAltAuctions
 	if NS.db["shoppingLists"][NS.currentListKey]["qohAllCharacters"] == 1 then
 		-- All Characters
-		qoh = qoh + currentPlayerTotal + otherPlayersTotal;
-		local auctionsTotal = TSMAPI:ModuleAPI( "ItemTracker", "auctionstotal", tsmItemString ); -- Auction Listings
-		qoh = qoh + ( auctionsTotal or 0 );
+		qoh = qoh + currentPlayerTotal + otherPlayersTotal + allPlayersAuctionsTotal;
 		if NS.db["shoppingLists"][NS.currentListKey]["qohGuilds"] then
-			local guildTotal = TSMAPI:ModuleAPI( "ItemTracker", "guildtotal", tsmItemString ); -- Guild Bank
-			qoh = qoh + ( guildTotal or 0 );
+			local guildTotal = TSMAPI.Inventory:GetGuildTotal( tsmItemString ); -- Guild Bank(s)
+			qoh = qoh + guildTotal;
 		end
 	elseif NS.db["shoppingLists"][NS.currentListKey]["qohAllCharacters"] == 2 then
 		-- Current Character
-		qoh = qoh + currentPlayerTotal;
-		local playerAuctions = TSMAPI:ModuleAPI( "ItemTracker", "playerauctions", GetUnitName( "player" ) ); -- Auction Listings
-		qoh = qoh + ( playerAuctions[tsmItemString] or 0 );
+		qoh = qoh + currentPlayerTotal + ( allPlayersAuctionsTotal - otherPlayersAuctionsTotal );
 		if NS.db["shoppingLists"][NS.currentListKey]["qohGuilds"] then
-			local guild,_,_ = GetGuildInfo( "player" );
-			local guildBank = ( guild and TSMAPI:ModuleAPI( "ItemTracker", "guildbank", guild ) ) or nil; -- Guild Bank
-			qoh = qoh + ( ( guildBank and guildBank[tsmItemString] ) or 0 );
+			local guildBank = TSMAPI.Inventory:GetGuildQuantity( tsmItemString ); -- Guild Bank
+			qoh = qoh + guildBank;
 		end
 	end
 	return qoh;
