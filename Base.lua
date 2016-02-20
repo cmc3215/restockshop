@@ -2,6 +2,11 @@
 -- INIT
 --------------------------------------------------------------------------------------------------------------------------------------------
 local NS = select( 2, ... );
+NS.addon = ...;
+NS.title = GetAddOnMetadata( NS.addon, "Title" );
+NS.versionString = GetAddOnMetadata( NS.addon, "Version" );
+NS.version = tonumber( NS.versionString );
+NS.UI = {};
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- FRAME CREATION
 --------------------------------------------------------------------------------------------------------------------------------------------
@@ -35,6 +40,7 @@ NS.Tooltip = function( frame, tooltip, tooltipAnchor )
 		if tooltipText then -- Function may have only SetHyperlink, etc. without returning text
 			GameTooltip:SetText( tooltipText );
 		end
+		GameTooltip:Show();
 	end );
 	frame:SetScript( "OnLeave", GameTooltip_Hide );
 end
@@ -113,7 +119,7 @@ end
 
 --
 NS.Button = function( name, parent, text, set )
-	local f = CreateFrame( "Button", "$parent" .. name, parent, ( set.template == nil and "UIPanelButtonTemplate" ) or ( set.template ~= false and set.template ) or nil );
+	local f = CreateFrame( "Button", ( set.topLevel and name or "$parent" .. name ), parent, ( set.template == nil and "UIPanelButtonTemplate" ) or ( set.template ~= false and set.template ) or nil );
 	f.id = set.id or nil;
 	if set.hidden then
 		f:Hide();
@@ -164,10 +170,12 @@ NS.Button = function( name, parent, text, set )
 		NS.Tooltip( f, set.tooltip, set.tooltipAnchor or { f, "ANCHOR_TOPRIGHT", 3, 0 } );
 	end
 	--
-	if f:GetScript( "OnClick" ) then
-		f:HookScript( "OnClick", set.OnClick );
-	else
-		f:SetScript( "OnClick", set.OnClick );
+	if set.OnClick then
+		if f:GetScript( "OnClick" ) then
+			f:HookScript( "OnClick", set.OnClick );
+		else
+			f:SetScript( "OnClick", set.OnClick );
+		end
 	end
 	if set.OnDisable then
 		f:SetScript( "OnDisable", set.OnDisable );
@@ -199,11 +207,10 @@ NS.CheckButton = function( name, parent, text, set )
 		elseif cb.dbpc then
 			NS.dbpc[cb.dbpc] = checked;
 		end
-		if cb.OnClick then
-			cb.OnClick( checked );
+		if set.OnClick then
+			set.OnClick( checked, cb );
 		end
 	end );
-	f.OnClick = set.OnClick or nil;
 	f.db = set.db or nil;
 	f.dbpc = set.dbpc or nil;
 	--
@@ -273,6 +280,13 @@ NS.Frame = function( name, parent, set )
 	end
 	if set.frameStrata then
 		f:SetFrameStrata( set.frameStrata );
+	end
+	if set.frameLevel then
+		if set.frameLevel == "TOP" then
+			f:SetToplevel( true );
+		else
+			f:SetFrameLevel( set.frameLevel );
+		end
 	end
 	if set.setAllPoints then
 		f:SetAllPoints();
@@ -357,6 +371,71 @@ NS.DropDownMenu_Initialize = function( dropdownMenu )
 		UIDropDownMenu_AddButton( info );
 	end
 end
+--
+NS.MinimapButton = function( name, texture, set )
+	local f = CreateFrame( "Button", name, Minimap );
+	f.dbpc = set.dbpc; -- Saved position variable per character
+	-- Position and Dragging
+	f:EnableMouse( true );
+	f:SetMovable( true );
+	f:RegisterForClicks( "LeftButtonUp", "RightButtonUp" );
+	f:RegisterForDrag( "LeftButton", "RightButton" );
+	function f:BeingDragged()
+		local xpos,ypos = GetCursorPosition();
+		local xmin,ymin = Minimap:GetLeft(), Minimap:GetBottom();
+		xpos = xmin - xpos / UIParent:GetScale() + 70
+		ypos = ypos / UIParent:GetScale() - ymin - 70
+		local pos = math.deg( math.atan2( ypos, xpos ) );
+		if pos < 0 then pos = pos + 360; end
+		NS.dbpc[self.dbpc] = pos;
+		self:UpdatePos();
+	end
+	function f:UpdatePos()
+		self:SetPoint( "TOPLEFT", "Minimap", "TOPLEFT", 53 - ( 80 * cos( NS.dbpc[self.dbpc] ) ), ( 80 * sin( NS.dbpc[self.dbpc] ) ) - 53 );
+	end
+	f:SetScript( "OnDragStart", function( self )
+		self:SetScript( "OnUpdate", function( self ) self:BeingDragged(); end );
+	end );
+	f:SetScript( "OnDragStop", function( self )
+		self:SetScript( "OnUpdate", nil );
+	end );
+	-- Appearance
+	f:SetFrameStrata( "MEDIUM" );
+	f:SetSize( 31, 31 );
+	f:SetHighlightTexture( "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight" );
+	-- Icon
+	local icon = f:CreateTexture( nil, "ARTWORK" );
+	icon:SetSize( 17, 17 );
+	icon:SetPoint( "TOPLEFT", 7, -6 );
+	icon:SetTexture( texture );
+	-- Overlay
+	local overlay = f:CreateTexture( nil, "OVERLAY" );
+	overlay:SetSize( 53, 53 );
+	overlay:SetPoint( "TOPLEFT" );
+	overlay:SetTexture( "Interface\\Minimap\\MiniMap-TrackingBorder" );
+	-- Background
+	local background = f:CreateTexture( nil, "BACKGROUND" );
+	background:SetSize( 20, 20 );
+	background:SetTexture( "Interface\\Minimap\\UI-Minimap-Background" );
+	background:SetPoint( "TOPLEFT", 7, -5 );
+	-- Tooltip
+	if set.tooltip then
+		NS.Tooltip( f, set.tooltip, set.tooltipAnchor or { f, "ANCHOR_LEFT", 3, 0 } );
+	end
+	-- LeftClick / RightClick
+	f:SetScript( "OnClick", function( self, ... )
+		local btn = select( 1, ... );
+		if btn == "LeftButton" and set.OnLeftClick then
+			set.OnLeftClick( self, ... );
+		elseif btn == "RightButton" and set.OnRightClick then
+			set.OnRightClick( self, ... );
+		end
+	end );
+	if set.OnLoad then
+		set.OnLoad( f );
+	end
+	return f;
+end
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- GENERAL
 --------------------------------------------------------------------------------------------------------------------------------------------
@@ -366,21 +445,6 @@ NS.Explode = function( sep, str )
 		table.insert( t, v );
 	end
 	return t;
-end
-
---
-NS.TimeDelayFunction = function( delaySeconds, delayFunction )
-	local totalDelay = 0;
-	local function CheckDelay( self, elapsed )
-		totalDelay = totalDelay + elapsed;
-		if totalDelay >= delaySeconds then
-			self:SetScript( "OnUpdate", nil );
-			self:SetParent( nil );
-			delayFunction();
-		end
-	end
-	local f = CreateFrame( "FRAME" );
-	f:SetScript( "OnUpdate", CheckDelay );
 end
 
 --
@@ -401,4 +465,97 @@ NS.Count = function( t )
 	return count;
 end
 
+--
+NS.Print = function( msg )
+	print( ORANGE_FONT_COLOR_CODE .. "<|r" .. NORMAL_FONT_COLOR_CODE .. NS.addon .. "|r" .. ORANGE_FONT_COLOR_CODE .. ">|r " .. msg );
+end
+
+--
+NS.Print_t = function( t )
+	for k, v in pairs( t ) do
+		if type( v ) == "table" then
+			print( k .. "=TABLE:" );
+			NS.Print_t( v );
+		elseif type( v ) == "string" or type( v ) == "number" then
+			print( k .. "=" .. v );
+		elseif type( v ) == "boolean" then
+			print( k .. "=" .. ( v and "true" or "false" ) );
+		end
+	end
+end
+
+--
+NS.SecondsToStrTime = function( seconds )
+	local originalSeconds = seconds;
+	-- Seconds In Min, Hour, Day
+    local secondsInAMinute = 60;
+    local secondsInAnHour  = 60 * secondsInAMinute;
+    local secondsInADay    = 24 * secondsInAnHour;
+    -- Days
+    local days = math.floor( seconds / secondsInADay );
+    -- Hours
+    local hourSeconds = seconds % secondsInADay;
+    local hours = math.floor( hourSeconds / secondsInAnHour );
+    -- Minutes
+    local minuteSeconds = hourSeconds % secondsInAnHour;
+    local minutes = floor( minuteSeconds / secondsInAMinute );
+    -- Seconds
+    local remainingSeconds = minuteSeconds % secondsInAMinute;
+    local seconds = math.ceil( remainingSeconds );
+	--
+	return ( days > 0 and hours == 0 and days .. " day" ) or ( days > 0 and days .. " day " .. hours .. " hr" ) or ( hours > 0 and minutes == 0 and hours .. " hr" ) or ( hours > 0 and hours .. " hr " .. minutes .. " min" ) or ( minutes > 0 and minutes .. " min" ) or seconds .. " sec";
+end
+
+--
+NS.StrTimeToSeconds = function( str )
+	if not str then return 0; end
+	local t1, i1, t2, i2 = strsplit( " ", str ); -- x day   -   x day x hr   -   x hr y min   -   x hr   -   x min   -   x sec
+	local M = function( i )
+		if i == "hr" then
+			return 3600;
+		elseif i == "min" then
+			return 60;
+		elseif i == "sec" then
+			return 1;
+		else
+			return 86400; -- day
+		end
+	end
+	return t1 * M( i1 ) + ( t2 and t2 * M( i2 ) or 0 );
+end
+
+--
+NS.FindKeyByName = function( t, name )
+	if not name then return nil end
+	for k, v in ipairs( t ) do
+		if v["name"] == name then
+			return k;
+		end
+	end
+	return nil;
+end
+
+--
+NS.FindKeyByField = function( t, f, fv )
+	if not fv then return nil end
+	for k, v in ipairs( t ) do
+		if v[f] == fv then
+			return k;
+		end
+	end
+	return nil;
+end
+
+--
+NS.Sort = function( t, k, order )
+	table.sort ( t,
+		function ( e1, e2 )
+			if order == "ASC" then
+				return e1[k] < e2[k];
+			elseif order == "DESC" then
+				return e1[k] > e2[k];
+			end
+		end
+	);
+end
 

@@ -4,13 +4,12 @@
 local NS = select( 2, ... );
 local L = NS.localization;
 --
-NS.addon = ...;
-NS.title = GetAddOnMetadata( NS.addon, "Title" );
-NS.stringVersion = GetAddOnMetadata( NS.addon, "Version" );
-NS.version = tonumber( NS.stringVersion );
+NS.options = {};
+--
 NS.initialized = false;
 NS.wowClientBuild = select( 2, GetBuildInfo() );
 NS.currentListKey = nil;
+NS.playerLoginMsg = {};
 NS.AuctionFrameTab = nil;
 NS.tooltipAdded = false;
 NS.editItemId = nil;
@@ -36,7 +35,6 @@ NS.auction = {
 NS.disableFlyoutChecks = false;
 NS.buyAll = false;
 --
-NS.options = {};
 NS.colorCode = {
 	low = ORANGE_FONT_COLOR_CODE,
 	norm = YELLOW_FONT_COLOR_CODE,
@@ -70,12 +68,6 @@ NS.fontColor = {
 	},
 };
 --------------------------------------------------------------------------------------------------------------------------------------------
--- Utility Functions
---------------------------------------------------------------------------------------------------------------------------------------------
-NS.Print = function( msg )
-	print( NS.colorCode.low .. "<|r" .. NORMAL_FONT_COLOR_CODE .. NS.addon .. "|r" .. NS.colorCode.low .. ">|r " .. msg );
-end
---------------------------------------------------------------------------------------------------------------------------------------------
 -- Optional Dependency Check - Need at least one loaded
 --------------------------------------------------------------------------------------------------------------------------------------------
 local addonLoaded = {};
@@ -86,13 +78,12 @@ for i = 1, GetNumAddOns() do
 		addonLoaded[name] = true;
 	end
 end
-local optAddons = { "Auc-Advanced", "Auctionator", "TradeSkillMaster_AuctionDB", "TradeSkillMaster_WoWuction" };
+local optAddons = { "Auc-Advanced", "Auctionator", "TradeSkillMaster_AuctionDB" };
 for k, v in ipairs( optAddons ) do
 	if addonLoaded[v] then
 		break -- Stop checking, we only needed one enabled
 	elseif k == #optAddons then
-		NS.Print( string.format( L["%sAt least one of the following addons must be enabled to provide an Item Value Source: %s|r"], RED_FONT_COLOR_CODE, table.concat( optAddons, ", " ) ) );
-		return -- Stop executing file
+		table.insert( NS.playerLoginMsg, string.format( L["%sAt least one of the following addons must be enabled to provide an Item Value Source: %s|r"], RED_FONT_COLOR_CODE, table.concat( optAddons, ", " ) ) );
 	end
 end
 --------------------------------------------------------------------------------------------------------------------------------------------
@@ -114,7 +105,7 @@ NS.DefaultSavedVariables = function()
 			[1] = {
 				["name"] = L["Restock Shopping List"],
 				["items"] = {},
-				["itemValueSrc"] = ( addonLoaded["TradeSkillMaster_AuctionDB"] and "DBMarket" ) or ( addonLoaded["TradeSkillMaster_WoWuction"] and "wowuctionMarket" ) or ( addonLoaded["Auc-Advanced"] and "AucMarket" ) or ( addonLoaded["Auctionator"] and "AtrValue" ),
+				["itemValueSrc"] = ( addonLoaded["TradeSkillMaster_AuctionDB"] and "DBMarket" ) or ( addonLoaded["Auc-Advanced"] and "AucMarket" ) or ( addonLoaded["Auctionator"] and "AtrValue" ) or "DBMarket",
 				["lowStockPct"] = 50,
 				["qohAllCharacters"] = 1,
 				["qohGuilds"] = true,
@@ -153,7 +144,7 @@ NS.Upgrade = function()
 		local listKey = 1;
 		while listKey <= #NS.db["shoppingLists"] do
 			if not NS.db["shoppingLists"][listKey]["name"] then
-				table.remove( NS.db["shoppingLists"], listKey ); -- Remove empty tables from previously deleted lists
+				table.remove( NS.db["shoppingLists"], listKey );
 			else
 				listKey = listKey + 1;
 			end
@@ -161,7 +152,7 @@ NS.Upgrade = function()
 		--
 		table.sort ( NS.db["shoppingLists"],
 			function ( list1, list2 )
-				return list1["name"] < list2["name"]; -- Sort lists by name A-Z
+				return list1["name"] < list2["name"];
 			end
 		);
 		--
@@ -207,7 +198,7 @@ NS.Upgrade = function()
 	end
 	-- 3.2
 	if version < 3.2 then
-		NS.db["optionsFramePosition"] = vars["optionsFramePosition"];
+		NS.db["optionsFramePosition"] = vars["optionsFramePosition"]; -- Overwrite possible corrupt position info
 	end
 	-- 3.5
 	if version < 3.5 then
@@ -217,8 +208,22 @@ NS.Upgrade = function()
 			end
 		end
 	end
+	-- 4.0
+	if version < 4.0 then
+		for k = 1, #NS.db["shoppingLists"] do
+			if NS.db["shoppingLists"][k]["itemValueSrc"] == "wowuctionMarket" then
+				NS.db["shoppingLists"][k]["itemValueSrc"] = "DBMarket";
+			elseif NS.db["shoppingLists"][k]["itemValueSrc"] == "wowuctionMedian" then
+				NS.db["shoppingLists"][k]["itemValueSrc"] = "DBHistorical";
+			elseif NS.db["shoppingLists"][k]["itemValueSrc"] == "wowuctionRegionMarket" then
+				NS.db["shoppingLists"][k]["itemValueSrc"] = "DBRegionMarketAvg";
+			elseif NS.db["shoppingLists"][k]["itemValueSrc"] == "wowuctionRegionMedian" then
+				NS.db["shoppingLists"][k]["itemValueSrc"] = "DBRegionHistorical";
+			end
+		end
+	end
 	--
-	NS.Print( string.format( L["Upgraded version %s to %s"], version, NS.version ) );
+	table.insert( NS.playerLoginMsg, string.format( L["Upgraded version %s to %s"], version, NS.version ) );
 	NS.db["version"] = NS.version;
 end
 
@@ -227,7 +232,12 @@ NS.UpgradePerCharacter = function()
 	local varspercharacter = NS.DefaultSavedVariablesPerCharacter();
 	local version = NS.dbpc["version"];
 	--
-	-- Not currently used, but will be going forward, SVPC version was introduced in 2.0 requiring SVPC to be overwritten with defaults because version will be nil
+	-- SVPC version was added in 2.0 which required SVPC to be overwritten with defaults if version was nil
+	--
+	-- X.x
+	--if version < X.x then
+		-- Do upgrade
+	--end
 	--
 	NS.dbpc["version"] = NS.version;
 end
@@ -289,6 +299,11 @@ end
 NS.OnPlayerLogin = function() -- PLAYER_LOGIN
 	RestockShopEventsFrame:UnregisterEvent( "PLAYER_LOGIN" );
 	InterfaceOptions_AddCategory( RestockShopInterfaceOptionsPanel );
+	if next( NS.playerLoginMsg ) then
+		for _, msg in ipairs( NS.playerLoginMsg ) do
+			NS.Print( msg );
+		end
+	end
 end
 
 
@@ -913,7 +928,7 @@ function NS.scan:QueryPageSend()
 	elseif self.query.attempts < self.query.maxAttempts then
 		-- Increment attempts, delay and reattempt
 		self.query.attempts = self.query.attempts + 1;
-		NS.TimeDelayFunction( 0.10, function() self:QueryPageSend() end );
+		C_Timer.After( 0.10, function() self:QueryPageSend() end );
 	else
 		-- Aborting scan
 		NS.Print( L["Could not query Auction House after several attempts, try again later"] );
@@ -1377,7 +1392,7 @@ NS.WoWClientBuildChanged = function()
 		);
 		--
 		listKey = listKey + 1;
-		NS.TimeDelayFunction( 1, queueList );
+		C_Timer.After( 1, queueList );
 	end
 	-- Function: queryList()
 	local function queryList()
@@ -1388,7 +1403,7 @@ NS.WoWClientBuildChanged = function()
 		local _,_,_,latencyWorld = GetNetStats();
 		local delay = math.ceil( #NS.db["shoppingLists"][listKey]["items"] * ( ( latencyWorld > 0 and latencyWorld or 300 ) * 0.10 * 0.001 ) );
 		delay = delay > 0 and delay or 1;
-		NS.TimeDelayFunction( delay, updateList );
+		C_Timer.After( delay, updateList );
 	end
 	-- Forward Declared Function: queueList()
 	queueList = function()
@@ -1406,7 +1421,7 @@ NS.WoWClientBuildChanged = function()
 	end
 	--
 	listKey = 1;
-	NS.TimeDelayFunction( 30, queueList ); -- Delay allows time for WoW client to establish latency
+	C_Timer.After( 30, queueList ); -- Delay allows time for WoW client to establish latency
 end
 
 --
@@ -1504,10 +1519,12 @@ NS.SlashCmdHandler = function( msg )
 		NS.options.MainFrame:ShowTab( 1 );
 	elseif msg == "moreoptions" then
 		NS.options.MainFrame:ShowTab( 2 );
+	elseif msg == "glossary" then
+		NS.options.MainFrame:ShowTab( 3 );
 	elseif msg == "help" then
-		NS.options.MainFrame:ShowTab( 3 );
+		NS.options.MainFrame:ShowTab( 4 );
 	else
-		NS.options.MainFrame:ShowTab( 3 );
+		NS.options.MainFrame:ShowTab( 4 );
 		NS.Print( L["Unknown command, opening Help"] );
 	end
 end
