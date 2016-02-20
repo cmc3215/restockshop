@@ -12,6 +12,8 @@ NS.options.cfg = {
 		width		= 848,
 		height		= 590,
 		frameStrata	= "MEDIUM",
+		frameLevel	= "TOP",
+		buttonBar	= true,
 		Init		= function( MainFrame ) end,
 		OnShow		= function( MainFrame )
 			MainFrame:ClearAllPoints();
@@ -355,7 +357,7 @@ NS.options.cfg = {
 						end
 						local _,_,_,latencyWorld = GetNetStats();
 						local delay = ( latencyWorld > 0 and latencyWorld or 300 ) * 3 * 0.001;
-						NS.TimeDelayFunction( delay, CompleteSubmission ); -- Delay to allow client to retrieve item info from server
+						C_Timer.After( delay, CompleteSubmission ); -- Delay to allow client to retrieve item info from server
 					end,
 				} );
 				-- Gray frame top right
@@ -387,15 +389,22 @@ NS.options.cfg = {
 						{ L["AucAppraiser"], "AucAppraiser" },
 						{ L["AucMarket"], "AucMarket" },
 						{ L["AucMinBuyout"], "AucMinBuyout" },
+						{ L["DBGlobalHistorical"], "DBGlobalHistorical" },
 						{ L["DBGlobalMarketAvg"], "DBGlobalMarketAvg" },
 						{ L["DBGlobalMinBuyoutAvg"], "DBGlobalMinBuyoutAvg" },
 						{ L["DBGlobalSaleAvg"], "DBGlobalSaleAvg" },
+						{ L["DBHistorical"], "DBHistorical" },
 						{ L["DBMarket"], "DBMarket" },
 						{ L["DBMinBuyout"], "DBMinBuyout" },
-						{ L["wowuctionMarket"], "wowuctionMarket" },
-						{ L["wowuctionMedian"], "wowuctionMedian" },
-						{ L["wowuctionRegionMarket"], "wowuctionRegionMarket" },
-						{ L["wowuctionRegionMedian"], "wowuctionRegionMedian" },
+						{ L["DBRegionHistorical"], "DBRegionHistorical" },
+						{ L["DBRegionMarketAvg"], "DBRegionMarketAvg" },
+						{ L["DBRegionMinBuyoutAvg"], "DBRegionMinBuyoutAvg" },
+						{ L["DBRegionSaleAvg"], "DBRegionSaleAvg" },
+						{ L["Destroy"], "Destroy" },
+						{ L["VendorBuy"], "VendorBuy" },
+						{ L["VendorSell"], "VendorSell" },
+						{ L["Crafting"], "Crafting" },
+						{ L["matPrice"], "matPrice" },
 					},
 					OnClick = function( info )
 						NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] = info.value;
@@ -841,7 +850,7 @@ NS.options.cfg = {
 						if delay > 0 then
 							NS.Print( string.format( L["Asking server about %d item(s)... %d second(s) please"], #itemsToRecheck, delay ) );
 						end
-						NS.TimeDelayFunction( delay, completeImport );
+						C_Timer.After( delay, completeImport );
 					end
 				end
 				StaticPopupDialogs["RESTOCKSHOP_SHOPPINGLISTITEM_DELETE"] = {
@@ -1105,40 +1114,13 @@ NS.options.cfg = {
 			end,
 		},
 		{
-			-- Help
+			-- Glossary
 			mainFrameTitle	= NS.title,
-			tabText			= "Help",
+			tabText			= "Glossary",
 			Init			= function( SubFrame )
-				NS.TextFrame( "Description", SubFrame, string.format( L["%s version %s"], NS.title, NS.stringVersion ), {
-					setPoint = {
-						{ "TOPLEFT", "$parent", "TOPLEFT", 8, -8 },
-						{ "RIGHT", -8 },
-					},
-					fontObject = "GameFontRedSmall",
-				} );
-				NS.TextFrame( "SlashCommandsHeader", SubFrame, string.format( L["%sSlash Commands|r"], BATTLENET_FONT_COLOR_CODE ), {
-					setPoint = {
-						{ "TOPLEFT", "#sibling", "BOTTOMLEFT", 0, -18 },
-						{ "RIGHT", 0 },
-					},
-					fontObject = "GameFontNormalLarge",
-				} );
-				NS.TextFrame( "SlashCommands", SubFrame, string.format(
-						L["%s/rs|r - Opens options frame to \"Shopping Lists\"\n" ..
-						"%s/rs moreoptions|r - Opens options frame to \"More Options\"\n" ..
-						"%s/rs help|r - Opens options frame to \"Help\"\n" ..
-						"%s/rs acceptbuttonclick|r - Clicks the Accept button on the Auction House tab. Useful in a Macro for fast key or mouse bound buying."],
-						NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE
-					), {
-					setPoint = {
-						{ "TOPLEFT", "#sibling", "BOTTOMLEFT", 0, -8 },
-						{ "RIGHT", 0 },
-					},
-					fontObject = "GameFontHighlight",
-				} );
 				NS.TextFrame( "ItemStatusesHeader", SubFrame, string.format( L["%sItem Statuses|r"], BATTLENET_FONT_COLOR_CODE ), {
 					setPoint = {
-						{ "TOPLEFT", "#sibling", "BOTTOMLEFT", 0, -18 },
+						{ "TOPLEFT", "$parent", "TOPLEFT", 8, -8 },
 						{ "RIGHT", 0 },
 					},
 					fontObject = "GameFontNormalLarge",
@@ -1168,16 +1150,59 @@ NS.options.cfg = {
 						"%sAucAppraiser|r - Auctioneer Appraiser\n" ..
 						"%sAucMarket|r - Auctioneer Market Value\n" ..
 						"%sAucMinBuyout|r - Auctioneer Minimum Buyout\n" ..
+						"%sDBGlobalHistorical|r - AuctionDB Global Historical Price (via TSM App)\n" ..
 						"%sDBGlobalMarketAvg|r - AuctionDB Global Market Value Average (via TSM App)\n" ..
 						"%sDBGlobalMinBuyoutAvg|r - AuctionDB Global Minimum Buyout Average (via TSM App)\n" ..
 						"%sDBGlobalSaleAvg|r - AuctionDB Global Sale Average (via TSM App)\n" ..
+						"%sDBHistorical|r - AuctionDB Historical Price (via TSM App)\n" ..
 						"%sDBMarket|r - AuctionDB Market Value\n" ..
 						"%sDBMinBuyout|r - AuctionDB Minimum Buyout\n" ..
-						"%swowuctionMarket|r - WoWuction Realm Market Value\n" ..
-						"%swowuctionMedian|r - WoWuction Realm Median Price\n" ..
-						"%swowuctionRegionMarket|r - WoWuction Region Market Value\n" ..
-						"%swowuctionRegionMedian|r - WoWuction Region Median Price"],
-						NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE
+						"%sDBRegionHistorical|r - AuctionDB Region Historical Price (via TSM App)\n" ..
+						"%sDBRegionMarketAvg|r - AuctionDB Region Market Value Average (via TSM App)\n" ..
+						"%sDBRegionMinBuyoutAvg|r - AuctionDB Region Minimum Buyout Average (via TSM App)\n" ..
+						"%sDBRegionSaleAvg|r - AuctionDB Region Sale Average (via TSM App)\n" ..
+						"%sDestroy|r - TSM Destroy Value\n" ..
+						"%sVendorBuy|r - TSM Buy from Vendor\n" ..
+						"%sVendorSell|r - TSM Sell to Vendor\n" ..
+						"%sCrafting|r - TSM Crafting Cost\n" ..
+						"%smatPrice|r - TSM Crafting Material Cost"],
+						NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE
+					), {
+					setPoint = {
+						{ "TOPLEFT", "#sibling", "BOTTOMLEFT", 0, -8 },
+						{ "RIGHT", 0 },
+					},
+					fontObject = "GameFontHighlight",
+				} );
+			end,
+			Refresh			= function( SubFrame ) return end,
+		},
+		{
+			-- Help
+			mainFrameTitle	= NS.title,
+			tabText			= "Help",
+			Init			= function( SubFrame )
+				NS.TextFrame( "Description", SubFrame, string.format( L["%s version %s"], NS.title, NS.versionString ), {
+					setPoint = {
+						{ "TOPLEFT", "$parent", "TOPLEFT", 8, -8 },
+						{ "RIGHT", -8 },
+					},
+					fontObject = "GameFontRedSmall",
+				} );
+				NS.TextFrame( "SlashCommandsHeader", SubFrame, string.format( L["%sSlash Commands|r"], BATTLENET_FONT_COLOR_CODE ), {
+					setPoint = {
+						{ "TOPLEFT", "#sibling", "BOTTOMLEFT", 0, -18 },
+						{ "RIGHT", 0 },
+					},
+					fontObject = "GameFontNormalLarge",
+				} );
+				NS.TextFrame( "SlashCommands", SubFrame, string.format(
+						L["%s/rs|r - Opens options frame to \"Shopping Lists\"\n" ..
+						"%s/rs moreoptions|r - Opens options frame to \"More Options\"\n" ..
+						"%s/rs glossary|r - Opens options frame to \"Glossary\"\n" ..
+						"%s/rs help|r - Opens options frame to \"Help\"\n" ..
+						"%s/rs acceptbuttonclick|r - Clicks the Accept button on the Auction House tab. Useful in a Macro for fast key or mouse bound buying."],
+						NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE
 					), {
 					setPoint = {
 						{ "TOPLEFT", "#sibling", "BOTTOMLEFT", 0, -8 },
