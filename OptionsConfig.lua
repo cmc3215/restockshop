@@ -33,7 +33,7 @@ NS.options.cfg = {
 			mainFrameTitle	= NS.title,
 			tabText			= "Shopping Lists",
 			Init			= function( SubFrame )
-				NS.TextFrame( "Description", SubFrame, string.format( L["%sItem ID|r: Found on the item's game tooltip or Wowhead URL (e.g. /item=12345/)\n%sFull Stock|r: The max number of an item you want to keep in stock.\n%sLow|r, %sNorm|r, and %sFull|r: The item's max price at the corresponding stock quantity.\n%sNote:|r To avoid scanning for an item at %sFull Stock|r leave %sFull|r %sempty|r or set to %s0|r."], NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NS.colorCode.low, NS.colorCode.norm, NS.colorCode.full, RED_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NS.colorCode.full, BATTLENET_FONT_COLOR_CODE, BATTLENET_FONT_COLOR_CODE ), {
+				NS.TextFrame( "Description", SubFrame, string.format( L["%sItem ID|r: Found in the item's tooltip or Wowhead URL (e.g. /item=12345/)\n%sFull Stock|r: The max number of an item you want to keep in stock.\n%sLow|r, %sNorm|r, %sFull|r: The item's max price at the corresponding stock quantity.\n%sNote:|r To avoid scanning an item at %sFull Stock|r leave %sFull|r %sempty|r or set to %s0|r."], NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NS.colorCode.low, NS.colorCode.norm, NS.colorCode.full, RED_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NS.colorCode.full, BATTLENET_FONT_COLOR_CODE, BATTLENET_FONT_COLOR_CODE ), {
 					setPoint = {
 						{ "TOPLEFT", "$parent", "TOPLEFT", 8, -8 },
 						{ "RIGHT", -8 },
@@ -135,7 +135,7 @@ NS.options.cfg = {
 					setPoint = { "TOPLEFT", "#sibling", "BOTTOMLEFT", -69, 1 },
 				} );
 				NS.TextFrame( "FullStockLabel", SubFrame, L["Full Stock"], {
-					size = { ( 45 + 14 ), 20 },
+					size = { ( 48 + 14 ), 20 },
 					setPoint = { "TOPLEFT", "#sibling", "TOPRIGHT", 10, 0 },
 				} );
 				NS.TextFrame( "LowStockPriceLabel", SubFrame, NS.colorCode.low .. L["Low"] .. "|r", {
@@ -250,7 +250,7 @@ NS.options.cfg = {
 				} );
 				NS.TextFrame( "PricesDescription", SubFrame, L["Max prices, percentage of Item's Value"], {
 					setPoint = {
-						{ "TOPLEFT", "$parentLowStockPriceEditbox", "BOTTOMLEFT", -8, -4 },
+						{ "TOPLEFT", "$parentLowStockPriceEditbox", "BOTTOMLEFT", -12, -4 },
 						{ "RIGHT", -8 },
 					},
 					fontObject = "GameFontNormalSmall",
@@ -383,7 +383,7 @@ NS.options.cfg = {
 				} );
 				NS.DropDownMenu( "ItemValueSrcDropDownMenu", OptionsFrame, {
 					setPoint = { "TOPLEFT", "#sibling", "BOTTOMLEFT", -12, -2 },
-					tooltip = string.format( L["Sets the data source for Item Value.\nYou must have the corresponding addon\ninstalled and it's price data available.\n\nItem Value is the base price from which\n%sLow|r, %sNorm|r, and %sFull|r prices are calculated."], NS.colorCode.low, NS.colorCode.norm, NS.colorCode.full ),
+					tooltip = string.format( L["Sets the data source for Item Value.\nYou must have the corresponding addon\ninstalled and it's price data available.\nSee Glossary tab for descriptions.\n\nItem Value is the base price from which\n%sLow|r, %sNorm|r, and %sFull|r prices are calculated."], NS.colorCode.low, NS.colorCode.norm, NS.colorCode.full ),
 					buttons = {
 						{ L["AtrValue"], "AtrValue" },
 						{ L["AucAppraiser"], "AucAppraiser" },
@@ -410,7 +410,7 @@ NS.options.cfg = {
 						NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] = info.value;
 						_G[SubFrame:GetName() .. "ScrollFrame"]:Update();
 					end,
-					width = 149,
+					width = 154,
 				} );
 				NS.TextFrame( "OnHandTrackingLabel", OptionsFrame, L["On Hand Tracking"], {
 					setPoint = {
@@ -421,7 +421,7 @@ NS.options.cfg = {
 				} );
 				NS.DropDownMenu( "QOHAllCharactersDropDownMenu", OptionsFrame, {
 					setPoint = { "TOPLEFT", "#sibling", "BOTTOMLEFT", -12, -2 },
-					tooltip = string.format( L["Sets which characters to\ninclude for On Hand values.\n\n%sWARNING!|r\nTradeSkillMaster_ItemTracker\nsettings affect On Hand values."], RED_FONT_COLOR_CODE ),
+					tooltip = string.format( L["Sets which characters to\ninclude for On Hand values.\n\n%sWARNING!|r\nTradeSkillMaster options\nalso affect On Hand values.\n(e.g. Forget Characters, Ignore Guilds)"], RED_FONT_COLOR_CODE ),
 					buttons = {
 						{ L["All Characters"], 1 },
 						{ L["Current Character"], 2 },
@@ -430,19 +430,19 @@ NS.options.cfg = {
 						NS.db["shoppingLists"][NS.currentListKey]["qohAllCharacters"] = info.value;
 						_G[SubFrame:GetName() .. "ScrollFrame"]:Update();
 					end,
-					width = 109,
+					width = 116,
 				} );
 				NS.CheckButton( "QOHGuildsCheckButton", OptionsFrame, L["Include Guild Bank(s)"], {
 					template = "InterfaceOptionsSmallCheckButtonTemplate",
 					setPoint = { "TOPLEFT", "#sibling", "TOPRIGHT", -2, -1 },
-					tooltip = string.format( L["On Hand values include the\nGuild Bank(s) based on whether\nyou selected All Characters\nor Current Character.\n\n%sWARNING!|r\nTradeSkillMaster_ItemTracker\nsettings affect On Hand values."], RED_FONT_COLOR_CODE ),
+					tooltip = string.format( L["On Hand values include the\nGuild Bank(s) based on whether\nyou selected All Characters\nor Current Character.\n\n%sWARNING!|r\nTradeSkillMaster options\nalso affect On Hand values.\n(e.g. Forget Characters, Ignore Guilds)"], RED_FONT_COLOR_CODE ),
 					OnClick = function( checked )
 						NS.db["shoppingLists"][NS.currentListKey]["qohGuilds"] = checked;
 						_G[SubFrame:GetName() .. "ScrollFrame"]:Update();
 					end,
 				} );
 				NS.TextFrame( "LowStockPctLabel", OptionsFrame, string.format( L["%sLow Stock %%|r"], NS.colorCode.low ), {
-					size = { 62, 10 },
+					size = { 66, 10 },
 					setPoint = { "TOPLEFT", "$parentQOHAllCharactersDropDownMenu", "BOTTOMLEFT", 12, -8 },
 					fontObject = "GameFontNormalSmall",
 				} );
@@ -467,7 +467,7 @@ NS.options.cfg = {
 					width = 49,
 				} );
 				NS.TextFrame( "HideOverstockStacksPctLabel", OptionsFrame, string.format( L["%sHide Overstock Stacks %%|r"], NS.colorCode.full ), {
-					size = { 120, 10 },
+					size = { 128, 10 },
 					setPoint = { "TOPLEFT", "$parentLowStockPctLabel", "TOPRIGHT", 28, 0 },
 					fontObject = "GameFontNormalSmall",
 				} );
@@ -523,7 +523,7 @@ NS.options.cfg = {
 				};
 				--
 				NS.TextFrame( "CurrentShoppingList", SubFrame, L["Current Shopping List:"], {
-					size = { 131, 20 },
+					size = { 140, 20 },
 					setPoint = { "TOPLEFT", "$parentDescription", "BOTTOMLEFT", 0, -120 },
 				} );
 				NS.DropDownMenu( "ShoppingListsDropDownMenu", SubFrame, {
@@ -543,7 +543,7 @@ NS.options.cfg = {
 					width = 195,
 				} );
 				NS.TextFrame( "ItemsLabel", SubFrame, L["Items:"], {
-					size = { 36, 20 },
+					size = { 40, 20 },
 					setPoint = { "LEFT", "#sibling", "RIGHT", -6, 0 },
 				} );
 				NS.TextFrame( "ItemsNum", SubFrame, "", {

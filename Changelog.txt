@@ -1,3 +1,8 @@
+**4.1**
+* Release date: 03/12/2016
+* Fixed several text labels and dropdowns that were being truncated when using WoW's Fullscreen as opposed to Windowed mode.
+* Updated the tooltips of a few shopping list settings. Included were two that still referenced the now non-existent TradeSkillMaster_ItemTracker addon.
+
 **4.0**
 * Release date: 02/20/2016
 * WARNING: TradeSkillMaster_WoWuction no longer supported, please use TradeSkillMaster_AuctionDB for equivalent data. Any RestockShop Shopping List using WoWuction as an Item Value Source will be automatically changed to the TradeSkillMaster_AuctionDB equivalent.
