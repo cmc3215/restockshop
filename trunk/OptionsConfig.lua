@@ -269,14 +269,14 @@ NS.options.cfg = {
 						local normalStockPrice = _G[sfn .. "NormalStockPriceEditbox"]:GetNumber();
 						local fullStockPrice = _G[sfn .. "FullStockPriceEditbox"]:GetNumber();
 						--
-						local name, link, maxStack, texture = nil, nil, nil, nil;
-						name,link,quality,_,_,_,_,maxStack,_,texture,_ = GetItemInfo( itemId ); -- name,link,quality,iLevel,reqLevel,class,subclass,maxStack,equipSlot,texture,vendorPrice = GetItemInfo( ItemID or ItemString or ItemLink );
+						local name,link,texture;
+						name,link,quality,_,_,_,_,_,_,texture = GetItemInfo( itemId );
 						--
 						local function CompleteSubmission()
 							local submitError = false;
 							-- Item Id
 							if not name then
-								name,link,quality,_,_,_,_,maxStack,_,texture,_ = GetItemInfo( itemId );
+								name,link,quality,_,_,_,_,_,_,texture = GetItemInfo( itemId );
 								if not name then
 									submitError = true;
 									NS.Print( string.format( L["Item not found, check your %sItem ID|r"], NORMAL_FONT_COLOR_CODE ) );
@@ -330,7 +330,6 @@ NS.options.cfg = {
 									["link"] = link,
 									["quality"] = quality,
 									["tsmItemString"] = NS.TSMItemString( link ),
-									["maxStack"] = maxStack,
 									["texture"] = texture,
 									["fullStockQty"] = fullStockQty,
 									["maxPricePct"] = {
@@ -442,7 +441,7 @@ NS.options.cfg = {
 					end,
 				} );
 				NS.TextFrame( "LowStockPctLabel", OptionsFrame, string.format( L["%sLow Stock %%|r"], NS.colorCode.low ), {
-					size = { 66, 10 },
+					size = { 68, 10 },
 					setPoint = { "TOPLEFT", "$parentQOHAllCharactersDropDownMenu", "BOTTOMLEFT", 12, -8 },
 					fontObject = "GameFontNormalSmall",
 				} );
@@ -467,7 +466,7 @@ NS.options.cfg = {
 					width = 49,
 				} );
 				NS.TextFrame( "HideOverstockStacksPctLabel", OptionsFrame, string.format( L["%sHide Overstock Stacks %%|r"], NS.colorCode.full ), {
-					size = { 128, 10 },
+					size = { 130, 10 },
 					setPoint = { "TOPLEFT", "$parentLowStockPctLabel", "TOPRIGHT", 28, 0 },
 					fontObject = "GameFontNormalSmall",
 				} );
@@ -523,7 +522,7 @@ NS.options.cfg = {
 				};
 				--
 				NS.TextFrame( "CurrentShoppingList", SubFrame, L["Current Shopping List:"], {
-					size = { 140, 20 },
+					size = { 142, 20 },
 					setPoint = { "TOPLEFT", "$parentDescription", "BOTTOMLEFT", 0, -120 },
 				} );
 				NS.DropDownMenu( "ShoppingListsDropDownMenu", SubFrame, {
@@ -752,7 +751,7 @@ NS.options.cfg = {
 				local function ImportItems( importString, data )
 					--
 					-- Function: importItem()
-					local function importItem( itemId, fullStockQty, lowStockPrice, normalStockPrice, fullStockPrice, name, link, quality, maxStack, texture )
+					local function importItem( itemId, fullStockQty, lowStockPrice, normalStockPrice, fullStockPrice, name, link, quality, texture )
 						if fullStockQty < 1 or lowStockPrice < 1 or normalStockPrice < 1 or lowStockPrice < normalStockPrice or normalStockPrice < fullStockPrice then
 							return false;
 						else
@@ -766,7 +765,6 @@ NS.options.cfg = {
 								["link"] = link,
 								["quality"] = quality,
 								["tsmItemString"] = NS.TSMItemString( link ),
-								["maxStack"] = maxStack,
 								["texture"] = texture,
 								["fullStockQty"] = fullStockQty,
 								["maxPricePct"] = {
@@ -806,9 +804,9 @@ NS.options.cfg = {
 								lowStockPrice = lowStockPrice and tonumber( lowStockPrice ) or 100;
 								normalStockPrice = normalStockPrice and tonumber( normalStockPrice ) or 100;
 								fullStockPrice = fullStockPrice and tonumber( fullStockPrice ) or 0;
-								local name,link,quality,_,_,_,_,maxStack,_,texture,_ = GetItemInfo( itemId );
+								local name,link,quality,_,_,_,_,_,_,texture = GetItemInfo( itemId );
 								if name then
-									if importItem( itemId, fullStockQty, lowStockPrice, normalStockPrice, fullStockPrice, name, link, quality, maxStack, texture ) then
+									if importItem( itemId, fullStockQty, lowStockPrice, normalStockPrice, fullStockPrice, name, link, quality, texture ) then
 										importedTotal = importedTotal + 1;
 									else
 										invalid = true;
@@ -827,8 +825,8 @@ NS.options.cfg = {
 						-- Function: completeImport()
 						local function completeImport()
 							for _, v in ipairs( itemsToRecheck ) do
-								local name,link,quality,_,_,_,_,maxStack,_,texture,_ = GetItemInfo( items[v][1] );
-								if name and importItem( items[v][1], items[v][2], items[v][3], items[v][4], items[v][5], name, link, quality, maxStack, texture ) then
+								local name,link,quality,_,_,_,_,_,_,texture = GetItemInfo( items[v][1] );
+								if name and importItem( items[v][1], items[v][2], items[v][3], items[v][4], items[v][5], name, link, quality, texture ) then
 									importedTotal = importedTotal + 1;
 								else
 									table.insert( itemsInvalid, strjoin( ":" , items[v][1], items[v][2], items[v][3], items[v][4], items[v][5] ) );

@@ -252,12 +252,12 @@ NS.ScrollFrame = function( name, parent, set )
 	-- Scrollbar Textures
 	local tx = f:CreateTexture( nil, "ARTWORK" );
 	tx:SetTexture( "Interface\\PaperDollInfoFrame\\UI-Character-ScrollBar" );
-	tx:SetSize( 31, 250 );
+	tx:SetSize( 31, 260 );
 	tx:SetPoint( "TOPLEFT", "$parent", "TOPRIGHT", -2, 5 );
 	tx:SetTexCoord( 0, 0.484375, 0, 1.0 );
 	tx = f:CreateTexture( nil, "ARTWORK" );
 	tx:SetTexture( "Interface\\PaperDollInfoFrame\\UI-Character-ScrollBar" );
-	tx:SetSize( 31, 100 );
+	tx:SetSize( 31, 110 );
 	tx:SetPoint( "BOTTOMLEFT", "$parent", "BOTTOMRIGHT", -2, -2 );
 	tx:SetTexCoord( 0.515625, 1.0, 0, 0.4140625 );
 	--
@@ -296,7 +296,11 @@ NS.Frame = function( name, parent, set )
 	end
 	if set.bg then
 		f.Bg = f.Bg or f:CreateTexture( "$parentBG", "BACKGROUND" );
-		f.Bg:SetTexture( unpack( set.bg ) );
+		if type( set.bg[1] ) == "number" then
+			f.Bg:SetColorTexture( unpack( set.bg ) );
+		else
+			f.Bg:SetTexture( unpack( set.bg ) );
+		end
 	end
 	if set.bgSetAllPoints then
 		f.Bg:SetAllPoints();
