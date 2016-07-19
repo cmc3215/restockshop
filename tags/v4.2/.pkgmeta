@@ -1,0 +1,5 @@
+package-as: RestockShop
+
+manual-changelog:
+	filename: Changelog.txt
+	markup-type: creole
