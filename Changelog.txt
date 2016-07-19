@@ -1,3 +1,8 @@
+**4.2**
+* Release date: 07/19/2016
+* Updated TOC for patch 7.0.
+* Minor updates made for compatibility.
+
 **4.1**
 * Release date: 03/12/2016
 * Fixed several text labels and dropdowns that were being truncated when using WoW's Fullscreen as opposed to Windowed mode.
@@ -69,7 +74,7 @@
 * Several formerly global settings are now shopping list specific to allow each list to act more like a shopping profile, these settings are also now displayed at the top of the RestockShop Auction House tab.
 * Copy List will also copy the new individual list settings.
 * New button added on options frame Shopping List tab, "Apply To All", which allows the now individual shopping list settings of one list to be applied to all lists.
-* Default Low Stock % now 50%, up to from 30%.
+* Default Low Stock % now 50%, up from 30%.
 * New option on options frame More Options tab, "Remember Options Frame Position".
 * New options frame tab "Help".
 * New slash command, /rs help, opens the new options frame tab "Help".

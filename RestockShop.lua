@@ -73,7 +73,7 @@ NS.fontColor = {
 local addonLoaded = {};
 local character = UnitName( "player" );
 for i = 1, GetNumAddOns() do
-	local name,_,_,loadable,_,_,_ = GetAddOnInfo( i );
+	local name,_,_,loadable = GetAddOnInfo( i );
 	if loadable and GetAddOnEnableState( character, i ) > 0 then
 		addonLoaded[name] = true;
 	end
@@ -150,11 +150,7 @@ NS.Upgrade = function()
 			end
 		end
 		--
-		table.sort ( NS.db["shoppingLists"],
-			function ( list1, list2 )
-				return list1["name"] < list2["name"];
-			end
-		);
+		NS.Sort( NS.db["shoppingLists"], "name", "ASC" );
 		--
 		NS.db["wowClientBuild"] = 0; -- Forces the item data update that was added this version
 	end
@@ -822,9 +818,7 @@ function NS.scan:QueueAddList( queue )
 		self.items[item["itemId"]] = item;
 		self.items[item["itemId"]]["scanTexture"] = "Waiting";
 	end
-	table.sort ( self.queue, function ( item1, item2 )
-		return item1["name"] > item2["name"]; -- Sort by name Z-A because items are pulled from the end of the queue which will become A-Z
-	end	);
+	NS.Sort( self.queue, "name", "DESC" ); -- Sort by name Z-A because items are pulled from the end of the queue which will become A-Z
 end
 function NS.scan:QueueAddItem( item, queue, scanType )
 	table.insert( queue or self.queue, item );
@@ -915,16 +909,16 @@ function NS.scan:QueueRun()
 end
 function NS.scan:QueryPageSend()
 	if self.status ~= "scanning" then return end
-	if CanSendAuctionQuery() and self.ailu ~= "IGNORE" then
+	if CanSendAuctionQuery( "list" ) and self.ailu ~= "IGNORE" then
 		self.query.attempts = 1; -- Set to default on successful attempt
 		local name = self.query.item["name"];
 		local page = self.query.page;
-		local minLevel,maxLevel,invTypeIndex,classIndex,subClassIndex,isUsable,qualityIndex,getAll;
+		local minLevel,maxLevel,usable,rarity,getAll,exactMatch,filterData;
 		SortAuctionClearSort( "list" );
 		SortAuctionSetSort( "list", "buyout" );
 		SortAuctionApplySort( "list" );
 		RestockShopEventsFrame:RegisterEvent( "AUCTION_ITEM_LIST_UPDATE" );
-		QueryAuctionItems( name, minLevel, maxLevel, invTypeIndex, classIndex, subClassIndex, page, isUsable, qualityIndex, getAll );
+		QueryAuctionItems( name, minLevel, maxLevel, page, usable, rarity, getAll, exactMatch, filterData );
 	elseif self.query.attempts < self.query.maxAttempts then
 		-- Increment attempts, delay and reattempt
 		self.query.attempts = self.query.attempts + 1;
@@ -1119,9 +1113,7 @@ function NS.scan:Pause()
 	if #self.queue > 0 or self.query.page < self.query.totalPages then
 		self.pauseQueue = CopyTable( self.queue );
 		self:QueueAddItem( self.query.item, self.pauseQueue );
-		table.sort ( self.pauseQueue, function ( item1, item2 )
-			return item1["name"] > item2["name"]; -- Sort by name Z-A because items are pulled from the end of the queue which will become A-Z
-		end	);
+		NS.Sort( self.pauseQueue, "name", "DESC" ); -- Sort by name Z-A because items are pulled from the end of the queue which will become A-Z
 		self.paused = true;
 		--
 		self.queue = {}; -- Clear queue
@@ -1371,25 +1363,20 @@ NS.WoWClientBuildChanged = function()
 	-- Forward Declarations
 	local listKey, queueList;
 	-- Function: updateItem()
-	local function updateItem( listKey, itemKey, name, link, quality, maxStack, texture )
+	local function updateItem( listKey, itemKey, name, link, quality, texture )
 		NS.db["shoppingLists"][listKey]["items"][itemKey]["name"] = name or NS.db["shoppingLists"][listKey]["items"][itemKey]["name"];
 		NS.db["shoppingLists"][listKey]["items"][itemKey]["link"] = link or NS.db["shoppingLists"][listKey]["items"][itemKey]["link"];
 		NS.db["shoppingLists"][listKey]["items"][itemKey]["quality"] = quality or 0;
-		NS.db["shoppingLists"][listKey]["items"][itemKey]["maxStack"] = maxStack or NS.db["shoppingLists"][listKey]["items"][itemKey]["maxStack"];
 		NS.db["shoppingLists"][listKey]["items"][itemKey]["texture"] = texture or "Interface\\ICONS\\INV_Misc_QuestionMark";
 	end
 	-- Function: updateList()
 	local function updateList()
 		for itemKey, item in ipairs( NS.db["shoppingLists"][listKey]["items"] ) do
-			local name,link,quality,_,_,_,_,maxStack,_,texture,_ = GetItemInfo( item["itemId"] );
-			updateItem( listKey, itemKey, name, link, quality, maxStack, texture );
+			local name,link,quality,_,_,_,_,_,_,texture = GetItemInfo( item["itemId"] );
+			updateItem( listKey, itemKey, name, link, quality, texture );
 		end
 		--
-		table.sort ( NS.db["shoppingLists"][listKey]["items"],
-			function ( item1, item2 )
-				return item1["name"] < item2["name"]; -- Sort by name A-Z
-			end
-		);
+		NS.Sort( NS.db["shoppingLists"][listKey]["items"], "name", "ASC" ); -- Sort by name A-Z
 		--
 		listKey = listKey + 1;
 		C_Timer.After( 1, queueList );
@@ -1397,7 +1384,7 @@ NS.WoWClientBuildChanged = function()
 	-- Function: queryList()
 	local function queryList()
 		for itemKey, item in ipairs( NS.db["shoppingLists"][listKey]["items"] ) do
-			local name,link,quality,_,_,_,_,maxStack,_,texture,_ = GetItemInfo( item["itemId"] );
+			local name,link,quality,_,_,_,_,_,_,texture = GetItemInfo( item["itemId"] );
 		end
 		--
 		local _,_,_,latencyWorld = GetNetStats();
@@ -1408,12 +1395,7 @@ NS.WoWClientBuildChanged = function()
 	-- Forward Declared Function: queueList()
 	queueList = function()
 		if listKey <= #NS.db["shoppingLists"] then
-			if NS.db["shoppingLists"][listKey]["name"] then
-				queryList();
-			else
-				listKey = listKey + 1;
-				queueList();
-			end
+			queryList();
 		else
 			-- Update complete, save new build
 			NS.db["wowClientBuild"] = NS.wowClientBuild;
@@ -1508,7 +1490,7 @@ end
 NS.SlashCmdHandler = function( msg )
 	if msg == "acceptbuttonclick" then
 		AuctionFrameRestockShop_DialogFrame_BuyoutFrame_AcceptButton:Click();
-		return;
+		return; -- Stop function
 	end
 	-- Switch to "Browse" AuctionFrame tab
 	if AuctionFrameRestockShop and AuctionFrameRestockShop:IsShown() then
@@ -1831,7 +1813,7 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 		template = "BasicFrameTemplate",
 		size = { 247, 423 }, -- 274 with scrollbar, 247 without scrollbar
 		setPoint = { "LEFT", "$parent", "RIGHT", 8, -1 },
-		bg = { "Interface\\FrameGeneral\\UI-Background-Marble", true },
+		bg = { "Interface\\FrameGeneral\\UI-Background-Marble", true, true },
 		OnLoad = function( self )
 			self.TitleText:SetWordWrap( false );
 			self.TitleText:SetPoint( "LEFT", 4, 0 );
