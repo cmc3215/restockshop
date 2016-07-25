@@ -1150,13 +1150,14 @@ function NS.scan:OnChatMsgSystem( ... ) -- CHAT_MSG_SYSTEM
 	end
 end
 function NS.scan:OnUIErrorMessage( ... ) -- UI_ERROR_MESSAGE
-	local arg1 = select( 1, ... );
-	if not arg1 or (
-	arg1 ~= ERR_ITEM_NOT_FOUND and
-	arg1 ~= ERR_AUCTION_HIGHER_BID and
-	arg1 ~= ERR_AUCTION_BID_OWN and
-	arg1 ~= ERR_NOT_ENOUGH_MONEY and
-	arg1 ~= ERR_ITEM_MAX_COUNT
+	local arg2 = select( 2, ... );
+	if not arg2 or (
+	arg2 ~= ERR_ITEM_NOT_FOUND and
+	arg2 ~= ERR_AUCTION_HIGHER_BID and
+	arg2 ~= ERR_AUCTION_BID_OWN and
+	arg2 ~= ERR_NOT_ENOUGH_MONEY and
+	arg2 ~= ERR_RESTRICTED_ACCOUNT and	-- Starter Edition account
+	arg2 ~= ERR_ITEM_MAX_COUNT
 	) then
 		return;
 	end
@@ -1164,10 +1165,10 @@ function NS.scan:OnUIErrorMessage( ... ) -- UI_ERROR_MESSAGE
 	RestockShopEventsFrame:UnregisterEvent( "UI_ERROR_MESSAGE" );
 	NS.scan.status = "ready"; -- buying failed
 	--
-	if arg1 == ERR_ITEM_NOT_FOUND or arg1 == ERR_AUCTION_HIGHER_BID or arg1 == ERR_AUCTION_BID_OWN then
-		if arg1 == ERR_ITEM_NOT_FOUND or arg1 == ERR_AUCTION_HIGHER_BID then
+	if arg2 == ERR_ITEM_NOT_FOUND or arg2 == ERR_AUCTION_HIGHER_BID or arg2 == ERR_AUCTION_BID_OWN then
+		if arg2 == ERR_ITEM_NOT_FOUND or arg2 == ERR_AUCTION_HIGHER_BID then
 			NS.Print( RED_FONT_COLOR_CODE .. L["That auction is no longer available"] .. "|r" );
-		elseif arg1 == ERR_AUCTION_BID_OWN then
+		elseif arg2 == ERR_AUCTION_BID_OWN then
 			NS.Print( RED_FONT_COLOR_CODE .. L["That auction belongs to a character on your account"] .. "|r" );
 		end
 		--
@@ -1205,11 +1206,8 @@ function NS.scan:OnUIErrorMessage( ... ) -- UI_ERROR_MESSAGE
 			table.remove( NS.auction.data.groups.visible[NS.auction.selected.groupKey]["auctions"] );
 			NS.AuctionGroup_OnClick( NS.auction.selected.groupKey );
 		end
-	elseif arg1 == ERR_NOT_ENOUGH_MONEY then -- Not Enough Money
-		NS.StatusFrame_Message( L["You don't have enough money to buy that auction"] );
-		AuctionFrameRestockShop_BuyAllButton:Enable();
-	elseif arg1 == ERR_ITEM_MAX_COUNT then -- Item Max Count
-		NS.StatusFrame_Message( L["You can't carry anymore of that item"] );
+	else
+		NS.StatusFrame_Message( arg2 );
 		AuctionFrameRestockShop_BuyAllButton:Enable();
 	end
 	--
