@@ -1,3 +1,7 @@
+**4.3**
+* Release date: 07/24/2016
+* Minor update for compatibility, UI Error Messages such as "You don't have enough money" during buyout left you unable to click on additional auctions.
+
 **4.2**
 * Release date: 07/19/2016
 * Updated TOC for patch 7.0.

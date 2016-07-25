@@ -542,8 +542,8 @@ end
 --
 NS.FindKeyByField = function( t, f, fv )
 	if not fv then return nil end
-	for k, v in ipairs( t ) do
-		if v[f] == fv then
+	for k = 1, #t do
+		if t[k][f] == fv then
 			return k;
 		end
 	end
