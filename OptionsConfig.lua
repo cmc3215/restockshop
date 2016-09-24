@@ -262,6 +262,7 @@ NS.options.cfg = {
 						self:Disable();
 						--
 						local sfn = SubFrame:GetName();
+						local CompleteSubmission;
 						--
 						local itemId = _G[sfn .. "ItemIdEditbox"]:GetNumber();
 						local fullStockQty = _G[sfn .. "FullStockQtyEditbox"]:GetNumber();
@@ -269,18 +270,12 @@ NS.options.cfg = {
 						local normalStockPrice = _G[sfn .. "NormalStockPriceEditbox"]:GetNumber();
 						local fullStockPrice = _G[sfn .. "FullStockPriceEditbox"]:GetNumber();
 						--
-						local name,link,texture;
-						name,link,quality,_,_,_,_,_,_,texture = GetItemInfo( itemId );
-						--
-						local function CompleteSubmission()
+						CompleteSubmission = function( name,link,quality,level,minLevel,type,subType,stackCount,equipLoc,texture,sellPrice,classID,subClassID )
 							local submitError = false;
 							-- Item Id
 							if not name then
-								name,link,quality,_,_,_,_,_,_,texture = GetItemInfo( itemId );
-								if not name then
-									submitError = true;
-									NS.Print( string.format( L["Item not found, check your %sItem ID|r"], NORMAL_FONT_COLOR_CODE ) );
-								end
+								submitError = true;
+								NS.Print( string.format( L["Item not found, check your %sItem ID|r"], NORMAL_FONT_COLOR_CODE ) );
 							end
 							-- Full Stock
 							if fullStockQty < 1 then
@@ -307,56 +302,23 @@ NS.options.cfg = {
 								submitError = true;
 								NS.Print( string.format( L["%sNorm|r cannot be smaller than %sFull|r"], NS.colorCode.norm, NS.colorCode.full ) );
 							end
-							--
+							-- Final result...
 							if submitError then
-								-- Sumbit Error
+								-- Submit Error
 								NS.Print( string.format( L["%sItem not added, incorrect or missing data|r"], RED_FONT_COLOR_CODE ) );
 							else
 								-- Updated or Added
-								local itemKey = NS.FindItemKey( itemId );
-								local checked;
-								if itemKey then
-									NS.Print( L["Item updated"] .. " " .. link );
-									checked = NS.db["shoppingLists"][NS.currentListKey]["items"][itemKey]["checked"];
-								else
-									NS.Print( L["Item added"] .. " " .. link );
-									itemKey = #NS.db["shoppingLists"][NS.currentListKey]["items"] + 1;
-									checked = true;
-								end
-								-- Item Info
-								local itemInfo = {
-									["itemId"] = itemId,
-									["name"] = name,
-									["link"] = link,
-									["quality"] = quality,
-									["tsmItemString"] = NS.TSMItemString( link ),
-									["texture"] = texture,
-									["fullStockQty"] = fullStockQty,
-									["maxPricePct"] = {
-										["low"] = lowStockPrice,
-										["normal"] = normalStockPrice,
-										["full"] = fullStockPrice
-									},
-									["checked"] = checked,
-								};
-								-- Update and sort the current shopping list
-								NS.db["shoppingLists"][NS.currentListKey]["items"][itemKey] = itemInfo;
-								table.sort ( NS.db["shoppingLists"][NS.currentListKey]["items"],
-									function ( item1, item2 )
-										return item1["name"] < item2["name"]; -- Sort by name A-Z
-									end
-								);
+								local which = NS.AddItemToList( itemId, fullStockQty, lowStockPrice, normalStockPrice, fullStockPrice, name, link, quality, texture );
+								NS.Print( string.format( L["Item %s"], which ) .. " " .. link ); -- Item {updated/added}
 								_G[sfn .. "ScrollFrame"]:Update();
-								-- Focus Item Id
 								_G[sfn .. "ItemIdEditbox"]:ClearFocus();
 								_G[sfn .. "ItemIdEditbox"]:SetFocus();
 							end
 							--
 							self:Enable();
 						end
-						local _,_,_,latencyWorld = GetNetStats();
-						local delay = ( latencyWorld > 0 and latencyWorld or 300 ) * 3 * 0.001;
-						C_Timer.After( delay, CompleteSubmission ); -- Delay to allow client to retrieve item info from server
+						--
+						NS.GetItemInfo( itemId, CompleteSubmission );
 					end,
 				} );
 				-- Gray frame top right
@@ -375,45 +337,42 @@ NS.options.cfg = {
 				} );
 				NS.TextFrame( "ItemValueSrcLabel", OptionsFrame, L["Item Value Source"], {
 					setPoint = {
-						{ "TOPLEFT", "#sibling", "BOTTOMLEFT", 8, -18 },
+						{ "TOPLEFT", "#sibling", "BOTTOMLEFT", 0, -18 },
 						{ "RIGHT", -8 },
 					},
 					fontObject = "GameFontNormalSmall",
 				} );
-				NS.DropDownMenu( "ItemValueSrcDropDownMenu", OptionsFrame, {
-					setPoint = { "TOPLEFT", "#sibling", "BOTTOMLEFT", -12, -2 },
-					tooltip = string.format( L["Sets the data source for Item Value.\nYou must have the corresponding addon\ninstalled and it's price data available.\nSee Glossary tab for descriptions.\n\nItem Value is the base price from which\n%sLow|r, %sNorm|r, and %sFull|r prices are calculated."], NS.colorCode.low, NS.colorCode.norm, NS.colorCode.full ),
-					buttons = {
-						{ L["AtrValue"], "AtrValue" },
-						{ L["AucAppraiser"], "AucAppraiser" },
-						{ L["AucMarket"], "AucMarket" },
-						{ L["AucMinBuyout"], "AucMinBuyout" },
-						{ L["DBGlobalHistorical"], "DBGlobalHistorical" },
-						{ L["DBGlobalMarketAvg"], "DBGlobalMarketAvg" },
-						{ L["DBGlobalMinBuyoutAvg"], "DBGlobalMinBuyoutAvg" },
-						{ L["DBGlobalSaleAvg"], "DBGlobalSaleAvg" },
-						{ L["DBHistorical"], "DBHistorical" },
-						{ L["DBMarket"], "DBMarket" },
-						{ L["DBMinBuyout"], "DBMinBuyout" },
-						{ L["DBRegionHistorical"], "DBRegionHistorical" },
-						{ L["DBRegionMarketAvg"], "DBRegionMarketAvg" },
-						{ L["DBRegionMinBuyoutAvg"], "DBRegionMinBuyoutAvg" },
-						{ L["DBRegionSaleAvg"], "DBRegionSaleAvg" },
-						{ L["Destroy"], "Destroy" },
-						{ L["VendorBuy"], "VendorBuy" },
-						{ L["VendorSell"], "VendorSell" },
-						{ L["Crafting"], "Crafting" },
-						{ L["matPrice"], "matPrice" },
-					},
-					OnClick = function( info )
-						NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] = info.value;
-						_G[SubFrame:GetName() .. "ScrollFrame"]:Update();
+				NS.InputBox( "ItemValueSrcEditbox", OptionsFrame, {
+					size = { 190, 20 },
+					setPoint = { "TOPLEFT", "#sibling", "BOTTOMLEFT", 11, -4 },
+					maxLetters = 50,
+					tooltip = string.format( L["TradeSkillMaster price source or\ncustom price source. See Glossary\ntab for descriptions or type /tsm sources.\n\nItem Value is the base price from which\n%sLow|r, %sNorm|r, and %sFull|r prices are calculated."], NS.colorCode.low, NS.colorCode.norm, NS.colorCode.full ),
+					OnEnterPressed = function( self )
+						self:ClearFocus();
 					end,
-					width = 154,
+					OnEditFocusGained = function( self )
+						self:HighlightText();
+					end,
+					OnEditFocusLost = function( self )
+						self:HighlightText( 0, 0 );
+						local source = strtrim( self:GetText() );
+						if source ~= "" and string.match( source, "%a" ) and source ~= NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] then
+							-- Validate
+							if not NS.tsmPriceSources[source] and not TSMAPI:ValidateCustomPrice( source ) then
+								NS.Print( RED_FONT_COLOR_CODE .. string.format( L["Not a valid price source or custom price source."], source ) .. FONT_COLOR_CODE_CLOSE );
+							end
+							-- Update
+							NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] = source;
+							_G[SubFrame:GetName() .. "ScrollFrame"]:Update();
+						else
+							-- Ignore and reset
+							self:SetText( NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] );
+						end
+					end,
 				} );
 				NS.TextFrame( "OnHandTrackingLabel", OptionsFrame, L["On Hand Tracking"], {
 					setPoint = {
-						{ "TOPLEFT", "#sibling", "BOTTOMLEFT", 12, -8 },
+						{ "TOPLEFT", "#sibling", "BOTTOMLEFT", -11, -8 },
 						{ "RIGHT", -12 },
 					},
 					fontObject = "GameFontNormalSmall",
@@ -529,10 +488,21 @@ NS.options.cfg = {
 					setPoint = { "LEFT", "#sibling", "RIGHT", -12, -1 },
 					buttons = function()
 						local t = {};
-						for k, v in ipairs( NS.db["shoppingLists"] ) do
-							tinsert( t, { v["name"], k } );
+						for i, list in ipairs( NS.db["shoppingLists"] ) do
+							tinsert( t, { list["name"], i } );
 						end
 						return t;
+					end,
+					tooltip = function()
+						local maxRestockCost,maxRestockLowCount,maxRestockNormalCount,maxRestockOnHandQty,maxRestockFullStockQty = NS.MaxRestockListInfo();
+						local fullStockShortage = NS.FormatNum( maxRestockLowCount + maxRestockNormalCount );
+						maxRestockCost = fullStockShortage == "0" and ( HIGHLIGHT_FONT_COLOR_CODE .. "(" .. L["Full"] .. ")" .. FONT_COLOR_CODE_CLOSE ) or TSMAPI:MoneyToString( maxRestockCost, HIGHLIGHT_FONT_COLOR_CODE, "OPT_PAD" );
+						--
+						GameTooltip:AddLine( HIGHLIGHT_FONT_COLOR_CODE .. NS.db["shoppingLists"][NS.currentListKey]["name"] .. FONT_COLOR_CODE_CLOSE );
+						GameTooltip:AddDoubleLine( L["Full Stock"] .. ": ",  HIGHLIGHT_FONT_COLOR_CODE .. NS.FormatNum( maxRestockFullStockQty ) .. FONT_COLOR_CODE_CLOSE );
+						GameTooltip:AddDoubleLine( L["Full Stock Shortage"] .. ": ",  HIGHLIGHT_FONT_COLOR_CODE .. fullStockShortage .. FONT_COLOR_CODE_CLOSE );
+						GameTooltip:AddDoubleLine( L["Max Restock Cost"] .. ": ", maxRestockCost );
+						return nil;
 					end,
 					OnClick = function( info )
 						NS.dbpc["currentListName"] = info.text;
@@ -642,7 +612,7 @@ NS.options.cfg = {
 									_G[bn .. "_IconTexture"]:SetScript( "OnClick", OnClick );
 									_G[bn .. "_Name"]:SetText( items[k]["name"] );
 									_G[bn .. "_Name"]:SetTextColor( GetItemQualityColor( items[k]["quality"] ) );
-									_G[bn .. "_OnHand"]:SetText( NS.QOH( items[k]["tsmItemString"] ) );
+									_G[bn .. "_OnHand"]:SetText( NS.QOH( items[k]["link"] ) );
 									_G[bn .. "_FullStockQty"]:SetText( items[k]["fullStockQty"] );
 									_G[bn .. "_LowStockPrice"]:SetText( items[k]["maxPricePct"]["low"] .. "%" );
 									_G[bn .. "_NormalStockPrice"]:SetText( items[k]["maxPricePct"]["normal"] .. "%" );
@@ -651,7 +621,7 @@ NS.options.cfg = {
 									else
 										_G[bn .. "_FullStockPrice"]:SetText( items[k]["maxPricePct"]["full"] .. "%" );
 									end
-									MoneyFrame_Update( bn .. "_ItemValue_SmallMoneyFrame", TSMAPI:GetItemValue( items[k]["link"], NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] ) or 0 );
+									MoneyFrame_Update( bn .. "_ItemValue_SmallMoneyFrame", NS.GetItemValue( items[k]["link"] ) );
 									_G[bn .. "_DeleteButton"]:SetScript( "OnClick", function() StaticPopup_Show( "RESTOCKSHOP_SHOPPINGLISTITEM_DELETE", items[k]["name"], NS.db["shoppingLists"][NS.currentListKey]["name"], { ["shoppingList"] = NS.currentListKey, ["itemId"] = items[k]["itemId"] } ); end );
 									b:Show();
 									if IsHighlightLocked() then b:LockHighlight(); end
@@ -699,157 +669,94 @@ NS.options.cfg = {
 				} );
 				local function CreateList( shoppingListName, data )
 					shoppingListName = strtrim( shoppingListName );
-					-- Empty list name
 					if shoppingListName == "" then
+						-- Empty list name
 						NS.Print( L["List name cannot be empty"] );
+					elseif NS.FindKeyByField( NS.db["shoppingLists"], "name", shoppingListName ) then
+						-- Duplicate name
+						NS.Print( RED_FONT_COLOR_CODE .. L["List not created, that name already exists"] .. FONT_COLOR_CODE_CLOSE );
 					else
-						-- Duplicate list name
-						local duplicate = false;
-						for _, list in ipairs( NS.db["shoppingLists"] ) do
-							if shoppingListName == list["name"] then
-								duplicate = true;
-								NS.Print( RED_FONT_COLOR_CODE .. L["List not created, that name already exists"] .. "|r" );
-								break;
-							end
+						-- Insert list
+						table.insert( NS.db["shoppingLists"], {} );
+						-- Copy or Create?
+						if data then
+							-- Copy List: Copy all items and settings from the original list into the new list
+							NS.db["shoppingLists"][#NS.db["shoppingLists"]] = CopyTable( NS.db["shoppingLists"][data["shoppingList"]] );
+						else
+							-- Create List: Copy all settings from default variables
+							local vars = NS.DefaultSavedVariables();
+							NS.db["shoppingLists"][#NS.db["shoppingLists"]] = CopyTable( vars["shoppingLists"][1] );
 						end
-						-- Add new list
-						if not duplicate then
-							-- Insert into list table
-							table.insert( NS.db["shoppingLists"], {} );
-							-- Create or Copy?
-							if data then
-								-- Copy List, copy all items and settings from the original list into the new list
-								NS.db["shoppingLists"][#NS.db["shoppingLists"]] = CopyTable( NS.db["shoppingLists"][data["shoppingList"]] );
-							else
-								-- Create List, copy all settings from default variables
-								local vars = NS.DefaultSavedVariables();
-								NS.db["shoppingLists"][#NS.db["shoppingLists"]] = CopyTable( vars["shoppingLists"][1] );
-							end
-							-- Update Name
-							NS.db["shoppingLists"][#NS.db["shoppingLists"]]["name"] = shoppingListName;
-							-- Sort lists
-							table.sort ( NS.db["shoppingLists"],
-								function ( list1, list2 )
-									return list1["name"] < list2["name"]; -- Sort by name A-Z
-								end
-							);
-							-- Set newly created list to the selected list
-							for k, list in ipairs( NS.db["shoppingLists"] ) do
-								if shoppingListName == list["name"] then
-									NS.dbpc["currentListName"] = shoppingListName;
-									NS.currentListKey = k;
-									break;
-								end
-							end
-							-- Refreshes the dropdown menu and shopping list scrollframe
-							SubFrame:Refresh();
-							-- Notfiy user
-							NS.Print( L["List created"] );
-						end
+						-- Update Name
+						NS.db["shoppingLists"][#NS.db["shoppingLists"]]["name"] = shoppingListName;
+						-- Sort lists
+						NS.Sort( NS.db["shoppingLists"], "name", "ASC" );
+						-- Set newly created list to the selected list
+						NS.dbpc["currentListName"] = shoppingListName;
+						NS.currentListKey = NS.FindKeyByField( NS.db["shoppingLists"], "name", shoppingListName );
+						-- Refreshes the dropdown menu and shopping list scrollframe
+						SubFrame:Refresh();
+						-- Notfiy user
+						NS.Print( L["List created"] );
 					end
 				end
 				local function ImportItems( importString, data )
-					--
-					-- Function: importItem()
-					local function importItem( itemId, fullStockQty, lowStockPrice, normalStockPrice, fullStockPrice, name, link, quality, texture )
-						if fullStockQty < 1 or lowStockPrice < 1 or normalStockPrice < 1 or lowStockPrice < normalStockPrice or normalStockPrice < fullStockPrice then
-							return false;
-						else
-							local itemKey = NS.FindItemKey( itemId );
-							if not itemKey then
-								itemKey = #NS.db["shoppingLists"][data["shoppingList"]]["items"] + 1;
-							end
-							local itemInfo = {
-								["itemId"] = itemId,
-								["name"] = name,
-								["link"] = link,
-								["quality"] = quality,
-								["tsmItemString"] = NS.TSMItemString( link ),
-								["texture"] = texture,
-								["fullStockQty"] = fullStockQty,
-								["maxPricePct"] = {
-									["low"] = lowStockPrice,
-									["normal"] = normalStockPrice,
-									["full"] = fullStockPrice
-								},
-								["checked"] = true,
-							};
-							NS.db["shoppingLists"][data["shoppingList"]]["items"][itemKey] = itemInfo;
-							table.sort ( NS.db["shoppingLists"][data["shoppingList"]]["items"],
-								function ( item1, item2 )
-									return item1["name"] < item2["name"]; -- Sort by name A-Z
-								end
-							);
-							--
-							return true;
-						end
-					end
-					-- Process non-empty importString submissions
 					importString = strtrim( importString );
-					if importString ~= "" then
-						_G[SubFrame:GetName() .. "ImportItemsButton"]:Disable();
-						local items, itemsToRecheck, itemsInvalid, importedTotal = NS.Explode( ",", importString ), {}, {}, 0;
-						NS.Print( string.format( L["Attempting to import %d items..."], #items ) );
-						for k, v in ipairs( items ) do
-							local itemId, fullStockQty, lowStockPrice, normalStockPrice, fullStockPrice;
-							local invalid = false;
-							if string.find( v, "^%d+$" ) then
-								itemId = v;
-							elseif string.find( v, "^%d+:%d+:%d+:%d+:%d+$" ) then
-								itemId, fullStockQty, lowStockPrice, normalStockPrice, fullStockPrice = strsplit( ":", v );
+					if importString == "" then return end -- Ignore empty string
+					--
+					_G[SubFrame:GetName() .. "ImportItemsButton"]:Disable();
+					local items = NS.Explode( ",", importString );
+					local itemsInvalid,importedTotal = {}, 0;
+					local itemId,fullStockQty,lowStockPrice,normalStockPrice,fullStockPrice,itemNum,NextItem,CompleteItem;
+					NS.Print( string.format( L["Attempting to import %d items..."], #items ) );
+					--
+					NextItem = function()
+						if itemNum <= #items then
+							itemId,fullStockQty,lowStockPrice,normalStockPrice,fullStockPrice = nil,nil,nil,nil,nil;
+							--
+							if string.find( items[itemNum], "^%d+$" ) then
+								itemId = items[itemNum];
+							elseif string.find( items[itemNum], "^%d+:%d+:%d+:%d+:%d+$" ) then
+								itemId,fullStockQty,lowStockPrice,normalStockPrice,fullStockPrice = strsplit( ":", items[itemNum] );
 							end
+							--
 							if itemId then
 								itemId = tonumber( itemId );
 								fullStockQty = fullStockQty and tonumber( fullStockQty ) or 1;
 								lowStockPrice = lowStockPrice and tonumber( lowStockPrice ) or 100;
 								normalStockPrice = normalStockPrice and tonumber( normalStockPrice ) or 100;
 								fullStockPrice = fullStockPrice and tonumber( fullStockPrice ) or 0;
-								local name,link,quality,_,_,_,_,_,_,texture = GetItemInfo( itemId );
-								if name then
-									if importItem( itemId, fullStockQty, lowStockPrice, normalStockPrice, fullStockPrice, name, link, quality, texture ) then
-										importedTotal = importedTotal + 1;
-									else
-										invalid = true;
-									end
-								else
-									items[k] = { itemId, fullStockQty, lowStockPrice, normalStockPrice, fullStockPrice };
-									table.insert( itemsToRecheck, k );
-								end
+								return NS.GetItemInfo( itemId, CompleteItem );
 							else
-								invalid = true;
+								return CompleteItem();
 							end
-							if invalid then
-								table.insert( itemsInvalid, v );
-							end
-						end
-						-- Function: completeImport()
-						local function completeImport()
-							for _, v in ipairs( itemsToRecheck ) do
-								local name,link,quality,_,_,_,_,_,_,texture = GetItemInfo( items[v][1] );
-								if name and importItem( items[v][1], items[v][2], items[v][3], items[v][4], items[v][5], name, link, quality, texture ) then
-									importedTotal = importedTotal + 1;
-								else
-									table.insert( itemsInvalid, strjoin( ":" , items[v][1], items[v][2], items[v][3], items[v][4], items[v][5] ) );
-								end
-							end
+						else
+							-- ALL ITEMS COMPLETE
 							NS.Print( string.format( L["%d of %d items imported"], importedTotal, #items ) );
 							if #itemsInvalid > 0 then
 								NS.Print( string.format( L["%d invalid item(s) not imported:"], #itemsInvalid ) );
-								for _, v in ipairs( itemsInvalid ) do
-									NS.Print( RED_FONT_COLOR_CODE .. v .. "|r" );
+								for _,invalidItem in ipairs( itemsInvalid ) do
+									NS.Print( RED_FONT_COLOR_CODE .. invalidItem .. FONT_COLOR_CODE_CLOSE );
 								end
 							end
 							_G[SubFrame:GetName() .. "ScrollFrame"]:Update();
 							_G[SubFrame:GetName() .. "ImportItemsButton"]:Enable();
 						end
-						--
-						local _,_,_,latencyWorld = GetNetStats();
-						local delay = math.ceil( #itemsToRecheck * ( ( latencyWorld > 0 and latencyWorld or 300 ) * 0.10 * 0.001 ) );
-						if delay > 0 then
-							NS.Print( string.format( L["Asking server about %d item(s)... %d second(s) please"], #itemsToRecheck, delay ) );
-						end
-						C_Timer.After( delay, completeImport );
 					end
+					--
+					CompleteItem = function( name,link,quality,level,minLevel,type,subType,stackCount,equipLoc,texture,sellPrice,classID,subClassID )
+						if name and NS.AddItemToList( itemId, fullStockQty, lowStockPrice, normalStockPrice, fullStockPrice, name, link, quality, texture, data["shoppingList"] ) then
+							importedTotal = importedTotal + 1;
+						else
+							table.insert( itemsInvalid, items[itemNum] );
+						end
+						--
+						itemNum = itemNum + 1;
+						return NextItem();
+					end
+					--
+					itemNum = 1;
+					NextItem();
 				end
 				StaticPopupDialogs["RESTOCKSHOP_SHOPPINGLISTITEM_DELETE"] = {
 					text = L["Delete item? %s from %s"];
@@ -991,13 +898,13 @@ NS.options.cfg = {
 					text = L["Export items from list: %s\n\n|cffffd200TSM|r\nComma-delimited Item IDs\n|cff82c5ff12345,12346|r\n\nor\n\n|cffffd200RestockShop|r\nComma-delimited items\nColon-delimited settings\n|cff82c5ff12345:5:115:105:0,12346:40:110:100:0|r\n"];
 					button1 = "TSM",
 					button2 = CANCEL,
-					button3 = "RestockShop",
+					button3 = NS.title,
 					hasEditBox = 1,
 					maxLetters = 0,
 					OnAccept = function ( self, data )
 						local exportTable = {};
-						for k, v in ipairs( NS.db["shoppingLists"][data["shoppingList"]]["items"] ) do
-							table.insert( exportTable, v["itemId"] );
+						for _,item in ipairs( NS.db["shoppingLists"][data["shoppingList"]]["items"] ) do
+							table.insert( exportTable, item["itemId"] );
 						end
 						local exportString = table.concat( exportTable, "," );
 						self.editBox:SetText( exportString );
@@ -1006,8 +913,8 @@ NS.options.cfg = {
 					OnCancel = function ( self ) end,
 					OnAlt = function ( self, data )
 						local exportTable = {};
-						for k, v in ipairs( NS.db["shoppingLists"][data["shoppingList"]]["items"] ) do
-							table.insert( exportTable, strjoin( ":", v["itemId"], v["fullStockQty"], v["maxPricePct"]["low"], v["maxPricePct"]["normal"], v["maxPricePct"]["full"] ) );
+						for _,item in ipairs( NS.db["shoppingLists"][data["shoppingList"]]["items"] ) do
+							table.insert( exportTable, strjoin( ":", item["itemId"], item["fullStockQty"], item["maxPricePct"]["low"], item["maxPricePct"]["normal"], item["maxPricePct"]["full"] ) );
 						end
 						local exportString = table.concat( exportTable, "," );
 						self.editBox:SetText( exportString );
@@ -1015,7 +922,7 @@ NS.options.cfg = {
 					end,
 					OnShow = function ( self )
 						_G[self:GetName() .. "Button1Text"]:SetText( "TSM" );
-						_G[self:GetName() .. "Button3Text"]:SetText( "RestockShop" );
+						_G[self:GetName() .. "Button3Text"]:SetText( NS.title );
 						self.editBox:SetFocus();
 						self.editBox:SetCursorPosition( 0 );
 						self.editBox:HighlightText();
@@ -1040,7 +947,7 @@ NS.options.cfg = {
 				local sfn = SubFrame:GetName();
 				local ofn = sfn .. "Options";
 				--
-				_G[ofn .. "ItemValueSrcDropDownMenu"]:Reset( NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] );
+				_G[ofn .. "ItemValueSrcEditbox"]:SetText( NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] );
 				_G[ofn .. "QOHAllCharactersDropDownMenu"]:Reset( NS.db["shoppingLists"][NS.currentListKey]["qohAllCharacters"] );
 				_G[ofn .. "LowStockPctDropDownMenu"]:Reset( NS.db["shoppingLists"][NS.currentListKey]["lowStockPct"] );
 				_G[ofn .. "HideOverstockStacksPctDropDownMenu"]:Reset( NS.db["shoppingLists"][NS.currentListKey]["hideOverstockStacksPct"] );
@@ -1143,29 +1050,14 @@ NS.options.cfg = {
 					},
 					fontObject = "GameFontNormalLarge",
 				} );
-				NS.TextFrame( "ItemValueSources", SubFrame, string.format(
-						L["%sAtrValue|r - Auctionator Auction Value\n" ..
-						"%sAucAppraiser|r - Auctioneer Appraiser\n" ..
-						"%sAucMarket|r - Auctioneer Market Value\n" ..
-						"%sAucMinBuyout|r - Auctioneer Minimum Buyout\n" ..
-						"%sDBGlobalHistorical|r - AuctionDB Global Historical Price (via TSM App)\n" ..
-						"%sDBGlobalMarketAvg|r - AuctionDB Global Market Value Average (via TSM App)\n" ..
-						"%sDBGlobalMinBuyoutAvg|r - AuctionDB Global Minimum Buyout Average (via TSM App)\n" ..
-						"%sDBGlobalSaleAvg|r - AuctionDB Global Sale Average (via TSM App)\n" ..
-						"%sDBHistorical|r - AuctionDB Historical Price (via TSM App)\n" ..
-						"%sDBMarket|r - AuctionDB Market Value\n" ..
-						"%sDBMinBuyout|r - AuctionDB Minimum Buyout\n" ..
-						"%sDBRegionHistorical|r - AuctionDB Region Historical Price (via TSM App)\n" ..
-						"%sDBRegionMarketAvg|r - AuctionDB Region Market Value Average (via TSM App)\n" ..
-						"%sDBRegionMinBuyoutAvg|r - AuctionDB Region Minimum Buyout Average (via TSM App)\n" ..
-						"%sDBRegionSaleAvg|r - AuctionDB Region Sale Average (via TSM App)\n" ..
-						"%sDestroy|r - TSM Destroy Value\n" ..
-						"%sVendorBuy|r - TSM Buy from Vendor\n" ..
-						"%sVendorSell|r - TSM Sell to Vendor\n" ..
-						"%sCrafting|r - TSM Crafting Cost\n" ..
-						"%smatPrice|r - TSM Crafting Material Cost"],
-						NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE, NORMAL_FONT_COLOR_CODE
-					), {
+				NS.TextFrame( "ItemValueSources", SubFrame, ( function()
+						local sources = {};
+						for source, description in pairs( NS.tsmPriceSources ) do
+							table.insert( sources, NORMAL_FONT_COLOR_CODE .. source .. "|r - " .. description );
+						end
+						table.sort( sources );
+						return table.concat( sources, "\n" );
+					end )(), {
 					setPoint = {
 						{ "TOPLEFT", "#sibling", "BOTTOMLEFT", 0, -8 },
 						{ "RIGHT", 0 },
