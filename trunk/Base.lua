@@ -14,7 +14,6 @@ NS.LastChild = function( parent )
 	local children = { parent:GetChildren() };
 	return children[#children - 1]:GetName();
 end
-
 --
 NS.SetPoint = function( frame, parent, setPoint )
 	if type( setPoint[1] ) ~= "table" then
@@ -29,7 +28,6 @@ NS.SetPoint = function( frame, parent, setPoint )
 		frame:SetPoint( unpack( point ) );
 	end
 end
-
 --
 NS.Tooltip = function( frame, tooltip, tooltipAnchor )
 	frame.tooltip = tooltip;
@@ -79,9 +77,11 @@ NS.TextFrame = function( name, parent, text, set )
 	if set.OnShow then
 		f:SetScript( "OnShow", set.OnShow );
 	end
+	if set.OnLoad then
+		set.OnLoad( f );
+	end
 	return f;
 end
-
 --
 NS.InputBox = function( name, parent, set  )
 	local f = CreateFrame( "EditBox", "$parent" .. name, parent, set.template or "InputBoxTemplate" );
@@ -97,6 +97,10 @@ NS.InputBox = function( name, parent, set  )
 	end
 	if set.maxLetters then
 		f:SetMaxLetters( set.maxLetters );
+	end
+	-- Tooltip
+	if set.tooltip then
+		NS.Tooltip( f, set.tooltip, set.tooltipAnchor or { f, "ANCHOR_TOPRIGHT", 20, 0 } );
 	end
 	--
 	if set.OnTabPressed then
@@ -116,7 +120,6 @@ NS.InputBox = function( name, parent, set  )
 	end
 	return f;
 end
-
 --
 NS.Button = function( name, parent, text, set )
 	local f = CreateFrame( "Button", ( set.topLevel and name or "$parent" .. name ), parent, ( set.template == nil and "UIPanelButtonTemplate" ) or ( set.template ~= false and set.template ) or nil );
@@ -134,9 +137,15 @@ NS.Button = function( name, parent, text, set )
 		NS.SetPoint( f, parent, set.setPoint );
 	end
 	-- Text
-	if text and f:GetFontString() then
-		f:SetText( text );
+	if text then
 		local fs = f:GetFontString();
+		if not fs then
+			fs = f:CreateFontString( "$parentText" );
+			f:SetNormalFontObject( "GameFontNormal" );
+			f:SetHighlightFontObject( "GameFontHighlight" );
+			f:SetDisabledFontObject( "GameFontDisable" );
+		end
+		f:SetText( text );
 		if set.fontObject then
 			f:SetNormalFontObject( set.fontObject );
 			f:SetHighlightFontObject( set.fontObject );
@@ -144,6 +153,9 @@ NS.Button = function( name, parent, text, set )
 		end
 		if set.textColor then
 			fs:SetTextColor( set.textColor[1], set.textColor[2], set.textColor[3] );
+		end
+		if set.justifyV then
+			fs:SetJustifyV( set.justifyV );
 		end
 		if set.justifyH then
 			fs:SetJustifyH( set.justifyH );
@@ -177,20 +189,38 @@ NS.Button = function( name, parent, text, set )
 			f:SetScript( "OnClick", set.OnClick );
 		end
 	end
+	if set.OnEnable then
+		f:SetScript( "OnEnable", set.OnEnable );
+	end
 	if set.OnDisable then
 		f:SetScript( "OnDisable", set.OnDisable );
+	end
+	if set.OnShow then
+		f:SetScript( "OnShow", set.OnShow );
+	end
+	if set.OnHide then
+		f:SetScript( "Onhide", set.OnHide );
+	end
+	if set.OnEnter then
+		f:SetScript( "OnEnter", set.OnEnter );
+	end
+	if set.OnLeave then
+		f:SetScript( "OnLeave", set.OnLeave );
 	end
 	if set.OnLoad then
 		set.OnLoad( f );
 	end
 	return f;
 end
-
 --
 NS.CheckButton = function( name, parent, text, set )
 	local f = CreateFrame( "CheckButton", "$parent" .. name, parent, set.template or "InterfaceOptionsCheckButtonTemplate" );
 	--
 	_G[f:GetName() .. 'Text']:SetText( text );
+	--
+	if set.size then
+		f:SetSize( set.size[1], set.size[2] );
+	end
 	--
 	if set.setPoint then
 		NS.SetPoint( f, parent, set.setPoint );
@@ -211,12 +241,12 @@ NS.CheckButton = function( name, parent, text, set )
 			set.OnClick( checked, cb );
 		end
 	end );
+	--
 	f.db = set.db or nil;
 	f.dbpc = set.dbpc or nil;
 	--
 	return f;
 end
-
 --
 NS.ScrollFrame = function( name, parent, set )
 	local f = CreateFrame( "ScrollFrame", "$parent" .. name, parent, "FauxScrollFrameTemplate" );
@@ -265,12 +295,14 @@ NS.ScrollFrame = function( name, parent, set )
 		self:SetVerticalScroll( 0 );
 		self:Update();
 	end
+	if set.OnLoad then
+		set.OnLoad( f );
+	end
 	return f;
 end
-
 --
 NS.Frame = function( name, parent, set )
-	local f = CreateFrame( "Frame", ( set.topLevel and name or "$parent" .. name ), parent, set.template or nil );
+	local f = CreateFrame( set.type or "Frame", ( set.topLevel and name or "$parent" .. name ), parent, set.template or nil );
 	--
 	if set.hidden then
 		f:Hide();
@@ -326,7 +358,6 @@ NS.Frame = function( name, parent, set )
 	end
 	return f;
 end
-
 --
 NS.DropDownMenu = function( name, parent, set )
 	local f = CreateFrame( "Frame", "$parent" .. name, parent, "UIDropDownMenuTemplate" );
@@ -351,7 +382,6 @@ NS.DropDownMenu = function( name, parent, set )
 	--
 	return f;
 end
-
 --
 NS.DropDownMenu_Initialize = function( dropdownMenu )
 	local dm = dropdownMenu;
@@ -450,7 +480,6 @@ NS.Explode = function( sep, str )
 	end
 	return t;
 end
-
 --
 NS.TruncatedText_OnEnter = function( self )
 	local fs = _G[self:GetName() .. "Text"];
@@ -459,7 +488,6 @@ NS.TruncatedText_OnEnter = function( self )
 		GameTooltip:SetText( fs:GetText() );
 	end
 end
-
 --
 NS.Count = function( t )
 	local count = 0;
@@ -468,12 +496,10 @@ NS.Count = function( t )
 	end
 	return count;
 end
-
 --
 NS.Print = function( msg )
 	print( ORANGE_FONT_COLOR_CODE .. "<|r" .. NORMAL_FONT_COLOR_CODE .. NS.addon .. "|r" .. ORANGE_FONT_COLOR_CODE .. ">|r " .. msg );
 end
-
 --
 NS.Print_t = function( t )
 	for k, v in pairs( t ) do
@@ -487,7 +513,6 @@ NS.Print_t = function( t )
 		end
 	end
 end
-
 --
 NS.SecondsToStrTime = function( seconds )
 	local originalSeconds = seconds;
@@ -509,7 +534,6 @@ NS.SecondsToStrTime = function( seconds )
 	--
 	return ( days > 0 and hours == 0 and days .. " day" ) or ( days > 0 and days .. " day " .. hours .. " hr" ) or ( hours > 0 and minutes == 0 and hours .. " hr" ) or ( hours > 0 and hours .. " hr " .. minutes .. " min" ) or ( minutes > 0 and minutes .. " min" ) or seconds .. " sec";
 end
-
 --
 NS.StrTimeToSeconds = function( str )
 	if not str then return 0; end
@@ -527,29 +551,60 @@ NS.StrTimeToSeconds = function( str )
 	end
 	return t1 * M( i1 ) + ( t2 and t2 * M( i2 ) or 0 );
 end
-
+--
+NS.FormatNum = function( num )
+	while true do
+		num, k = string.gsub( num, "^(-?%d+)(%d%d%d)", "%1,%2" );
+		if ( k == 0 ) then break end
+	end
+	return num;
+end
+--
+NS.MoneyToString = function( money, colorCode )
+	local moneyText = GetCoinText( money );
+	if colorCode then
+		moneyText = string.gsub( moneyText, "(%d+)", colorCode .. "%1" .. FONT_COLOR_CODE_CLOSE );
+	end
+	moneyText = string.gsub( moneyText, ",", "" );
+	moneyText = string.gsub( moneyText, " Gold", "|cffffd70ag|r", 1 );
+	moneyText = string.gsub( moneyText, " Silver", "|cffc7c7cfs|r", 1 );
+	moneyText = string.gsub( moneyText, " Copper", "|cffeda55fc|r", 1 );
+	return moneyText;
+end
+--
+NS.FindKeyByField = function( t, f, v )
+	if not v then return nil end
+	for k = 1, #t do
+		if t[k][f] == v then
+			return k;
+		end
+	end
+	return nil;
+end
 --
 NS.FindKeyByName = function( t, name )
-	if not name then return nil end
-	for k, v in ipairs( t ) do
-		if v["name"] == name then
-			return k;
-		end
-	end
-	return nil;
+	return NS.FindKeyByField( t, "name", name );
 end
-
 --
-NS.FindKeyByField = function( t, f, fv )
-	if not fv then return nil end
-	for k = 1, #t do
-		if t[k][f] == fv then
+NS.PairsFindKeyByField = function( t, f, v )
+	if not v then return nil end
+	for k,_ in pairs( t ) do
+		if t[k][f] == v then
 			return k;
 		end
 	end
 	return nil;
 end
-
+--
+NS.FindKeyByValue = function( t, v )
+	if not v then return nil end
+	for k = 1, #t do
+		if t[k] == v then
+			return k;
+		end
+	end
+	return nil;
+end
 --
 NS.Sort = function( t, k, order )
 	table.sort ( t,
@@ -562,4 +617,23 @@ NS.Sort = function( t, k, order )
 		end
 	);
 end
-
+--
+NS.GetItemInfo = function( itemIdNameLink, Callback, maxAttempts, after )
+	if not itemIdNameLink or itemIdNameLink == 0 then return Callback(); end
+	local attempts,CheckItemInfo;
+	CheckItemInfo = function()
+		local name,link,quality,level,minLevel,type,subType,stackCount,equipLoc,texture,sellPrice,classID,subClassID = GetItemInfo( itemIdNameLink );
+		if not name and attempts < maxAttempts then
+			attempts = attempts + 1;
+			return C_Timer.After( after, CheckItemInfo );
+		elseif not name then
+			return Callback();
+		else
+			return Callback( name,link,quality,level,minLevel,type,subType,stackCount,equipLoc,texture,sellPrice,classID,subClassID );
+		end
+	end
+	attempts = 1;
+	maxAttempts = maxAttempts or 50;
+	after = after or 0.10;
+	CheckItemInfo();
+end

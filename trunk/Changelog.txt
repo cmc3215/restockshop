@@ -1,3 +1,18 @@
+**4.4**
+* Release date: 09/24/2016
+* Bug fix, Buyout worked incorrectly in several, but not all, languages other than English.
+* Bug fix, after a WoW client update some or all shopping list items might have a "?" icon and gray name.
+* Bug fix, since patch 7.0.3 list summary in center of Auction House tab would not update when changing lists.
+* Bug fix, addon was not detecting "Internal Auction Error" from Blizzard, it would just stop functioning until closed and reopened.
+* Bug fix, since WoD there have been items in game with the same itemID but different qualities, item levels, gem slots, and bonus stats. RestockShop only differentiated them by name previously. Items are now properly grouped, selected, and bought by their itemLink.
+* Added call to show the Auction House money frame when selecting the RestockShop tab. It was being hidden by some other Auction House addons, namely Auctionator when coming from the Sell or More tabs.
+* Improved speed and accuracy of "Import Items".
+* Changed Shopping List setting "Item Value Source". No longer a limited options dropdown menu, now a text input box that takes any TSM price source or custom price source to calculate the Item Value.
+* List settings previously on the title bar of the Auction House tab have been moved to a new tooltip on the Shopping List dropdown.
+* Tooltip referenced above also contains 1) "Full Stock", the total Full Stock of all items on your list. 2) "Full Stock Shortage", the total number of items required to reach Full Stock for all items on your list. 3) "Max Restock Cost", the total cost of restocking all items on your list at the max prices you set.
+* A tooltip on the Shopping List dropdown in the options frame has also been added to provide the 3 new metrics mentioned above.
+* Shopping List settings in an item's tooltip now also contains "Max Restock Cost", the total cost of restocking the item at the max prices you set.
+
 **4.3**
 * Release date: 07/24/2016
 * Minor update for compatibility, UI Error Messages such as "You don't have enough money" during buyout left you unable to click on additional auctions.
