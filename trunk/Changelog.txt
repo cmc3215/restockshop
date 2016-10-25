@@ -1,3 +1,7 @@
+**4.5**
+* Release date: 10/25/2016
+* TOC updated for patch 7.1.
+
 **4.4**
 * Release date: 09/24/2016
 * Bug fix, Buyout worked incorrectly in several, but not all, languages other than English.
