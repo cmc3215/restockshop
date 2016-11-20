@@ -1,5 +1,6 @@
 package-as: RestockShop
+enable-nolib-creation: no
 
 manual-changelog:
 	filename: Changelog.txt
-	markup-type: creole
+	markup-type: markdown
