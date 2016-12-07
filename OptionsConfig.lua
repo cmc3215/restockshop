@@ -714,10 +714,12 @@ NS.options.cfg = {
 						if itemNum <= #items then
 							itemId,fullStockQty,lowStockPrice,normalStockPrice,fullStockPrice = nil,nil,nil,nil,nil;
 							--
-							if string.find( items[itemNum], "^%d+$" ) then
-								itemId = items[itemNum];
+							if string.find( items[itemNum], "^i:%d+$" ) then
+								_,itemId = strsplit( ":", items[itemNum] );
 							elseif string.find( items[itemNum], "^%d+:%d+:%d+:%d+:%d+$" ) then
 								itemId,fullStockQty,lowStockPrice,normalStockPrice,fullStockPrice = strsplit( ":", items[itemNum] );
+							elseif string.find( items[itemNum], "^%d+$" ) then
+								itemId = items[itemNum];
 							end
 							--
 							if itemId then
@@ -866,7 +868,7 @@ NS.options.cfg = {
 					whileDead = 1,
 				};
 				StaticPopupDialogs["RESTOCKSHOP_SHOPPINGLISTITEMS_IMPORT"] = {
-					text = L["Import items to list: %s\n\n|cffffd200TSM|r\nComma-delimited Item IDs\nNo subgroup structure\n|cff82c5ff12345,12346|r\n\nor\n\n|cffffd200RestockShop|r\nComma-delimited items\nColon-delimited settings\n|cff82c5ff12345:5:115:105:0,12346:40:110:100:0|r\n"],
+					text = L["Import items to list: %s\n\n|cffffd200TSM|r\nComma-delimited Item IDs\nNo subgroup structure\n|cff82c5ffi:12345,i:12346|r or |cff82c5ff12345,12346|r\n\nor\n\n|cffffd200RestockShop|r\nComma-delimited items\nColon-delimited settings\n|cff82c5ff12345:5:115:105:0,12346:40:110:100:0|r\n"],
 					button1 = ACCEPT,
 					button2 = CANCEL,
 					hasEditBox = 1,
