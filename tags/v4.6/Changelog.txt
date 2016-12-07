@@ -1,0 +1,253 @@
+**4.6**
+
+- Release date: 12/07/2016
+- Import now supports TradeSkillMaster's new item export format (e.g. i:12345)
+
+**4.5**
+
+- Release date: 10/25/2016
+- TOC updated for patch 7.1.
+
+**4.4**
+
+- Release date: 09/24/2016
+- Bug fix, Buyout worked incorrectly in several, but not all, languages other than English.
+- Bug fix, after a WoW client update some or all shopping list items might have a "?" icon and gray name.
+- Bug fix, since patch 7.0.3 list summary in center of Auction House tab would not update when changing lists.
+- Bug fix, addon was not detecting "Internal Auction Error" from Blizzard, it would just stop functioning until closed and reopened.
+- Bug fix, since WoD there have been items in game with the same itemID but different qualities, item levels, gem slots, and bonus stats. RestockShop only differentiated them by name previously. Items are now properly grouped, selected, and bought by their itemLink.
+- Added call to show the Auction House money frame when selecting the RestockShop tab. It was being hidden by some other Auction House addons, namely Auctionator when coming from the Sell or More tabs.
+- Improved speed and accuracy of "Import Items".
+- Changed Shopping List setting "Item Value Source". No longer a limited options dropdown menu, now a text input box that takes any TSM price source or custom price source to calculate the Item Value.
+- List settings previously on the title bar of the Auction House tab have been moved to a new tooltip on the Shopping List dropdown.
+- Tooltip referenced above also contains 1) "Full Stock", the total Full Stock of all items on your list. 2) "Full Stock Shortage", the total number of items required to reach Full Stock for all items on your list. 3) "Max Restock Cost", the total cost of restocking all items on your list at the max prices you set.
+- A tooltip on the Shopping List dropdown in the options frame has also been added to provide the 3 new metrics mentioned above.
+- Shopping List settings in an item's tooltip now also contains "Max Restock Cost", the total cost of restocking the item at the max prices you set.
+
+**4.3**
+
+- Release date: 07/24/2016
+- Minor update for compatibility, UI Error Messages such as "You don't have enough money" during buyout left you unable to click on additional auctions.
+
+**4.2**
+
+- Release date: 07/19/2016
+- Updated TOC for patch 7.0.
+- Minor updates made for compatibility.
+
+**4.1**
+
+- Release date: 03/12/2016
+- Fixed several text labels and dropdowns that were being truncated when using WoW's Fullscreen as opposed to Windowed mode.
+- Updated the tooltips of a few shopping list settings. Included were two that still referenced the now non-existent TradeSkillMaster_ItemTracker addon.
+
+**4.0**
+
+- Release date: 02/20/2016
+- WARNING: TradeSkillMaster_WoWuction no longer supported, please use TradeSkillMaster_AuctionDB for equivalent data. Any RestockShop Shopping List using WoWuction as an Item Value Source will be automatically changed to the TradeSkillMaster_AuctionDB equivalent.
+- Added several more of TSM's price sources including Destroy, VendorBuy, VendorSell, Crafting, matPrice, and a few others from AuctionDB
+- Descriptions for Item Statuses and Item Value Sources have been moved from the "Help" tab to the new tab "Glossary".
+
+**3.9**
+
+- Release date: 12/21/2015
+- WARNING: TSM 2 no longer supported.
+- Updated API calls for TSM 3.
+- Addon TradeSkillMaster_ItemTracker is no longer required as it's been rolled into TSM.
+
+**3.8**
+
+- Release date: 06/23/2015
+- Updated TOC for patch 6.2.
+- Options frame strata changed to the more appropriate MEDIUM instead of HIGH.
+
+**3.7**
+
+- Release date: 05/21/2015
+- Updates to TOC.
+
+**3.6**
+
+- Release date: 05/21/2015
+- Auction results are now updated during scanning, instead of waiting for the scan to complete.
+- New button on Auction House tab, "Pause/Resume", you can now pause your scan to buy auctions as they appear and resume afterwards.
+- Bug fix, in rare situations when hiding and showing Overpriced Stacks there were duplicate auctions listed. The only real negative effect was it would cause more rescans during buying than were actually required.
+
+**3.5**
+
+- Release date: 05/18/2015
+- Flyout panel now offers checkboxes to include/exclude an item from a "Shop" scan. "Uncheck All" and "Check All" buttons are included and the selections you make are saved between sessions.
+- When selected, the button tooltips for "Hide Overpriced Stacks" and "Hide Overstock Stacks" now show the total number of auctions hidden.
+- Bug fix, again, very long shopping list names on the AH tab flyout panel no longer wrap onto multiple lines obscuring the list of items.
+- To reduce load, frames used at the Auction House are no longer created until actually visiting the Auction House.
+- All global functions have been localized to reduce pollution in the global namespace.
+
+**3.4**
+
+- Release date: 05/06/2015
+- Item icons can now be clicked to select an item/row in all RestockShop's scrollframes, the corresponding row is also highlighted on mouseover of the icon.
+- Update to the options frame Shopping List tab, clicking an item on the list or entering it's item id now locks the highlight for that item's row, making it visually easier to edit shopping list items.
+- Update to the options frame Shopping List tab, when clicking or tabbing thru the edit boxes, the full content of each box will be highlighted for faster editing.
+
+**3.3**
+
+- Release date: 05/05/2015
+- New button added on options frame Shopping List tab, "Apply To All Items", allows updating all items with the individual entered value of either Full Stock, Low, Norm, or Full to help rapidly change large lists.
+
+**3.2**
+
+- Release date: 05/04/2015
+- Bug fix, new options frame position was being corrupted when saved without being moved, caused LUA error when attempting to reopen, frame position will reset to CENTER once on upgrade as part of fix.
+
+**3.1**
+
+- Release date: 05/04/2015
+- Bug fix, new RestockShop users were unable to save settings between sessions, upgrade users unaffected.
+
+**3.0**
+
+- Release date: 04/22/2015
+- Updated some old incorrect text.
+
+**2.9**
+
+- Release date: 04/22/2015
+- Bug fix, LUA error on RestockShop AH tab if On Hand Tracking was set to Current Character and Include Guild Bank(s) checked specifically when the player is either a) not in a guild or b) ignoring their guild in TSM_ItemTracker settings.
+- The options panel, formerly part of the Interface > Addons menu, has been redesigned and is now a standalone movable frame with tabs for better usability.
+- All options changed are now saved and applied instantly, formerly you had to click "Okay", which closed the options panel in order to save.
+- Shopping Lists in the new options frame now display additional data: On Hand and Item Value.
+- Several formerly global settings are now shopping list specific to allow each list to act more like a shopping profile, these settings are also now displayed at the top of the RestockShop Auction House tab.
+- Copy List will also copy the new individual list settings.
+- New button added on options frame Shopping List tab, "Apply To All", which allows the now individual shopping list settings of one list to be applied to all lists.
+- Default Low Stock % now 50%, up from 30%.
+- New option on options frame More Options tab, "Remember Options Frame Position".
+- New options frame tab "Help".
+- New slash command, /rs help, opens the new options frame tab "Help".
+- Localization has been put on hold for now, phrases have been removed.
+
+**2.8**
+
+- Release date: 02/27/2015
+- New button added on the RestockShop auction tab to toggle hiding auctions that exceed your max price, previously they were excluded during scanning.
+- "% Max Price" column now "% Item Value", auctions that exceed your max price will display their percentage in red.
+- Bug fix, tooltips for profession patterns with an item embedded were displaying RestockShop's info twice.
+- Removed localization for ptBR and zhCN, phrases used will continue to be listed in English inside the localization file and on the CurseForge project page for ease in translation.
+
+**2.7**
+
+- Release date: 02/24/2015
+- TOC updated for patch 6.1.
+
+**2.6**
+
+- Release date: 11/07/2014
+- Bug fix, closing AH after a failed purchase attempt (not enough money, etc) with BuyAll enabled caused LUA error.
+- Updated expected return values to some WoW API functions changed in patch 6.0.x.
+
+**2.5**
+
+- Release date: 10/14/2014
+- Updated Interface version to 60000, keeps the addon from appearing as "Out of date" in patch 6.0.x.
+- Removed Item Value Sources DBGlobalMarketMedian and DBGlobalMinBuyoutMedian, TSM announced they're no longer supporting Median price sources in AuctionDB.
+
+**2.4**
+
+- Release date: 09/25/2014
+- With patch 6.0.x the stack size of many items have been increased to 200 so I've added a button on the RestockShop auction tab to toggle hiding auctions that when purchased would cause you to exceed your "Full Stock Qty" by more than 20% by default but can be changed on options panel. This is meant to help get you closer to your "Full Stock Qty" with minimal overbuying especially when using the "Buy All" feature. As a convenience I've included the message "Hidden auctions available" when this feature is toggled on and is currently hiding auctions.
+- Updated option panels with new text and tooltips.
+- Added percentage option for the new "Hide Overstock Stacks" feature.
+- Default "Item Value Source" for fresh installs is now determined by which price data addon is enabled, previously default was always "DBMarket". This was changed to prevent new users from seeing missing data notices if, for example, they have TradeSkillMaster_WoWuction installed and enabled but not TradeSkillMaster_AuctionDB.
+- Tooltip color will now match whatever TSM's "Item Tooltip Text" color is set to instead of just being hardcoded.
+- Bug fix, "On Hand" percentage in an item's tooltip was not being displayed when Item Value data was missing.
+
+**2.3**
+
+- Release date: 09/13/2014
+- Bug fix, closing AH with BuyAll enabled caused LUA error.
+
+**2.2**
+
+- Release date: 09/12/2014
+- Bug fix, Flyout Panel highlighting items incorrectly.
+
+**2.1**
+
+- Release date: 09/12/2014
+- Flyout Panel now highlights each item as it scans your list.
+- For those times you don't want to scan the entire list, you can now click an item in the Flyout Panel to perform a single item scan, your item settings still apply.
+- Added more options to "Item Value Source" because TSM now offers several DBGlobal... (Global Data) sources via their TSM App.
+
+**2.0**
+
+- Release date: 09/11/2014
+- Shopping lists are now sorted alphabetically.
+- Shopping lists can no longer be given identical names, existing lists with identical names will not be edited but it's recommend you use "Copy List" and give them a new name then delete the original.
+- You no longer have to keep the "Default" shopping list (now named "Restock Shopping List"), you simply cannot delete all your lists, one must always remain.
+- The Undermine Journal is no longer an available "Item Value Source" because it was removed from TradeSkillMaster.
+- Deleted shopping lists are now completely removed from the SavedVariables, previously the items and name were removed but the table was kept for list indexing purposes.
+- Shopping lists dropdowns are now larger as not to hide longer list names.
+- Flyout Panel now truncates long shopping list names so the text won't overlap adjacent frames.
+- Bug fix, several truncated bits of text and dropdowns somehow got messed up in patch 5.4.8.
+- To ensure internally used item data remains accurate from patch to patch item data will update automatically now when the WoW client build changes. Though rare, items that no longer exist after a patch will be displayed as "Poor" (gray) quality with their icon set to the black/red "?".
+- Updated GetAddOnInfo() calls for patch 6.0.
+- Reverted manual depedency check added in v1.7 since TradeSkillMaster now loads optional dependencies.
+
+**1.9**
+
+- Release date: 07/28/2014
+- Added flyout panel on AH Tab that shows your shopping list and the progress of a shop scan.
+- Added Low, Norm, Full (green - with maxprice), and Full (gray - without maxprice) breakdown of shopping list on AH tab.
+- Gray "Full" as opposed to green "Full" labels represent items that are at full stock qty but have no full price (i.e. items that are skipped during AH scans).
+- Bug fix, closing AH with Buy All enabled caused LUA error.
+
+**1.8**
+
+- Release date: 03/02/2014
+- Bug fix, auctions of the same "Name" and "% Max Price" were not being sorted in the proper order of "Item Price" as expected.
+
+**1.7**
+
+- Release date: 02/21/2014
+- Added Import/Export of items to and from your shopping lists, this includes exporting the item IDs of a TSM Group into RestockShop.
+- Added more options to "Item Value Source" from the addons Auctionator, Auctioneer, and TheUndermineJournal(GE).
+- Added option to delete items from your shopping list without the confirmation dialog (Yes|No).
+- Sorting in Buy All mode will now select the newly sorted first result and scroll to the top to make sure it's visible, previously the selected result may have been anywhere depending on the sort.
+- Buy All mode will now scroll to top each time it selects the first result, i.e. previously you couldn't see the selected (first) item if you clicked Buy All when scrolled down the list.
+- Bug fix, on the Shopping Lists options panel if you scrolled down a long shopping list and then selected a much shorter list, the shorter list would appear empty until selecting it a second time.
+- Deleting an item from a shopping list now shows the item's link just as it does when adding an item, just to help confirm what items are being deleted.
+- Bug fix, TSM showed invalid groups / price source when dependent on TheUndermineJournal(GE), was caused by RestockShop setting TSM as an addon dependency, doing so moved TSM up the alphabetical addon loading order ahead of TheUndermineJournal(GE) so TSM assumed the price source was unavailable.
+- Delay after submitting an item to a shopping list has been reduced to almost instant.
+- Localization added for zhCN locale Chinese (Simplified).
+
+**1.6**
+
+- Release date: 02/10/2014
+- Auctions are now secondarily sorted in ascending order (Low to High) by "% Max Price" when sorting results by any other column except for "% Max Price".
+- Default sorting column now "Name", previously "% Max Price".
+- When an item is added or updated your shopping list will be sorted by name, A-Z; Scanning now done in list order also.
+- Shop button now becomes "Abort" button during scanning to abort a scan in progress.
+- Bug fix, when displaying and buying items with a random enchant they were not being grouped and matched by suffix correctly.
+- Bug fix, when adding/updating items very quickly, if you clicked on another row immediately after "Submit" it would use the clicked item's settings to update.
+
+**1.5**
+
+- Release date: 02/08/2014
+- Increased buyout speed when buying multiple stacks of the same item.
+- Added slash command for fast macro buying /rs acceptbuttonclick.
+- Bug fix, "Accept" button mouseover issue, the button would go dead sometimes when rapidly clicking to buy several auctions.
+- DBMarket & DBMinBuyout now available as Item Value Source option, which means TradeSkillMaster_WoWuction is no longer required.
+- Added a chat notice when you reach Full Stock Qty on an item while buying auctions.
+- Added item price to auction not found, rescan notices.
+- After adding an item to a list, the Item ID is reselected for faster entry of multiple items.
+- Converted XML to LUA except for required templates.
+- Added structure for Localization, tooltips used when translations are truncated; localization added for ptBR locale Portuguese (Brazilian).
+
+**1.4**
+
+- Release date: 01/29/2014
+- Bug fix, item tooltips comparison was missing when using [Shift + Mouseover].
+
+**1.3**
+
+- Release date: 01/19/2014
+- Intial public release.
