@@ -45,7 +45,7 @@ end
 --
 NS.TextFrame = function( name, parent, text, set )
 	local f = CreateFrame( "Frame", "$parent" .. name, parent );
-	local fs = f:CreateFontString( "$parentText", "ARTWORK", set.fontObject or "GameFontNormal" );
+	local fs = f:CreateFontString( "$parentText", set.layer or "ARTWORK", set.fontObject or "GameFontNormal" );
 	--
 	fs:SetText( text );
 	--
@@ -282,12 +282,12 @@ NS.ScrollFrame = function( name, parent, set )
 	-- Scrollbar Textures
 	local tx = f:CreateTexture( nil, "ARTWORK" );
 	tx:SetTexture( "Interface\\PaperDollInfoFrame\\UI-Character-ScrollBar" );
-	tx:SetSize( 31, 260 );
+	tx:SetSize( 31, math.floor( ( set.size[2] * 80 ) / 100 ) );
 	tx:SetPoint( "TOPLEFT", "$parent", "TOPRIGHT", -2, 5 );
 	tx:SetTexCoord( 0, 0.484375, 0, 1.0 );
 	tx = f:CreateTexture( nil, "ARTWORK" );
 	tx:SetTexture( "Interface\\PaperDollInfoFrame\\UI-Character-ScrollBar" );
-	tx:SetSize( 31, 110 );
+	tx:SetSize( 31, math.floor( ( set.size[2] * 30 ) / 100 ) );
 	tx:SetPoint( "BOTTOMLEFT", "$parent", "BOTTOMRIGHT", -2, -2 );
 	tx:SetTexCoord( 0.515625, 1.0, 0, 0.4140625 );
 	--
@@ -408,50 +408,86 @@ end
 --
 NS.MinimapButton = function( name, texture, set )
 	local f = CreateFrame( "Button", name, Minimap );
+	f:SetFrameStrata( "MEDIUM" );
 	f.dbpc = set.dbpc; -- Saved position variable per character
+	local h,i,o,bg;
+	local fSize,hSize,iSize,oSize,bgSize;
+	local iOffsetX,iOffsetY,bgOffsetX,bgOffsetY;
+	local arc,radius;
 	-- Position and Dragging
 	f:EnableMouse( true );
 	f:SetMovable( true );
 	f:RegisterForClicks( "LeftButtonUp", "RightButtonUp" );
 	f:RegisterForDrag( "LeftButton", "RightButton" );
-	function f:BeingDragged()
+	local BeingDragged = function()
 		local xpos,ypos = GetCursorPosition();
 		local xmin,ymin = Minimap:GetLeft(), Minimap:GetBottom();
-		xpos = xmin - xpos / UIParent:GetScale() + 70
-		ypos = ypos / UIParent:GetScale() - ymin - 70
+		xpos = xmin - xpos / UIParent:GetScale() + 70;
+		ypos = ypos / UIParent:GetScale() - ymin - 70;
 		local pos = math.deg( math.atan2( ypos, xpos ) );
 		if pos < 0 then pos = pos + 360; end
-		NS.dbpc[self.dbpc] = pos;
-		self:UpdatePos();
+		NS.dbpc[f.dbpc] = pos;
+		f:UpdatePos();
 	end
+	f:SetScript( "OnDragStart", function()
+		f:SetScript( "OnUpdate", BeingDragged );
+	end );
+	f:SetScript( "OnDragStop", function()
+		f:SetScript( "OnUpdate", nil );
+	end );
 	function f:UpdatePos()
-		self:SetPoint( "TOPLEFT", "Minimap", "TOPLEFT", 53 - ( 80 * cos( NS.dbpc[self.dbpc] ) ), ( 80 * sin( NS.dbpc[self.dbpc] ) ) - 53 );
+		f:ClearAllPoints();
+		f:SetPoint( "TOPLEFT", "Minimap", "TOPLEFT", arc - ( radius * cos( NS.dbpc[f.dbpc] ) ), ( radius * sin( NS.dbpc[f.dbpc] ) ) - arc );
 	end
-	f:SetScript( "OnDragStart", function( self )
-		self:SetScript( "OnUpdate", function( self ) self:BeingDragged(); end );
-	end );
-	f:SetScript( "OnDragStop", function( self )
-		self:SetScript( "OnUpdate", nil );
-	end );
-	-- Appearance
-	f:SetFrameStrata( "MEDIUM" );
-	f:SetSize( 31, 31 );
+	function f:UpdateSize( large )
+		h:ClearAllPoints();
+		if large then
+			-- Large
+			fSize,hSize,iSize,oSize,bgSize = 54,50,30,76,32;
+			iOffsetX,iOffsetY,bgOffsetX,bgOffsetY = 7.5,-6.5,6,-6;
+			if set.square then
+				iSize = 22;
+				iOffsetX,iOffsetY = 11.5,-10.5;
+			end
+			arc,radius = 48,87.5;
+			h:SetPoint( "TOPLEFT", -3, 3 );
+		else
+			-- Normal
+			fSize,hSize,iSize,oSize,bgSize = 32,32,21,54,22;
+			iOffsetX,iOffsetY,bgOffsetX,bgOffsetY = 5.7,-5,5,-5;
+			if set.square then
+				iSize = 16;
+				iOffsetX,iOffsetY = 8,-7;
+			end
+			arc,radius = 54,80.5;
+			h:SetAllPoints();
+		end
+		f:SetSize( fSize, fSize );
+		h:SetSize( hSize, hSize );
+		i:SetSize( iSize, iSize );
+		i:SetPoint( "TOPLEFT", iOffsetX, iOffsetY );
+		o:SetSize( oSize, oSize );
+		bg:SetSize( bgSize, bgSize );
+		bg:SetPoint( "TOPLEFT", bgOffsetX, bgOffsetY );
+	end
+	-- Highlight
 	f:SetHighlightTexture( "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight" );
+	h = f:GetHighlightTexture();
 	-- Icon
-	local icon = f:CreateTexture( nil, "ARTWORK" );
-	icon:SetSize( 17, 17 );
-	icon:SetPoint( "TOPLEFT", 7, -6 );
-	icon:SetTexture( texture );
+	i = f:CreateTexture( nil, "ARTWORK" );
+	i:SetTexture( texture );
+	if set.texCoord then
+		i:SetTexCoord( unpack( set.texCoord ) );
+	end
 	-- Overlay
-	local overlay = f:CreateTexture( nil, "OVERLAY" );
-	overlay:SetSize( 53, 53 );
-	overlay:SetPoint( "TOPLEFT" );
-	overlay:SetTexture( "Interface\\Minimap\\MiniMap-TrackingBorder" );
+	o = f:CreateTexture( nil, "OVERLAY" );
+	o:SetPoint( "TOPLEFT" );
+	o:SetTexture( "Interface\\Minimap\\MiniMap-TrackingBorder" );
 	-- Background
-	local background = f:CreateTexture( nil, "BACKGROUND" );
-	background:SetSize( 20, 20 );
-	background:SetTexture( "Interface\\Minimap\\UI-Minimap-Background" );
-	background:SetPoint( "TOPLEFT", 7, -5 );
+	bg = f:CreateTexture( nil, "BACKGROUND" );
+	bg:SetTexture( "Interface\\Minimap\\UI-Minimap-Background" );
+	-- Size
+	f:UpdateSize();
 	-- Tooltip
 	if set.tooltip then
 		NS.Tooltip( f, set.tooltip, set.tooltipAnchor or { f, "ANCHOR_LEFT", 3, 0 } );
@@ -501,21 +537,7 @@ NS.Print = function( msg )
 	print( ORANGE_FONT_COLOR_CODE .. "<|r" .. NORMAL_FONT_COLOR_CODE .. NS.addon .. "|r" .. ORANGE_FONT_COLOR_CODE .. ">|r " .. msg );
 end
 --
-NS.Print_t = function( t )
-	for k, v in pairs( t ) do
-		if type( v ) == "table" then
-			print( k .. "=TABLE:" );
-			NS.Print_t( v );
-		elseif type( v ) == "string" or type( v ) == "number" then
-			print( k .. "=" .. v );
-		elseif type( v ) == "boolean" then
-			print( k .. "=" .. ( v and "true" or "false" ) );
-		end
-	end
-end
---
-NS.SecondsToStrTime = function( seconds )
-	local originalSeconds = seconds;
+NS.SecondsToStrTime = function( seconds, colorCode )
 	-- Seconds In Min, Hour, Day
     local secondsInAMinute = 60;
     local secondsInAnHour  = 60 * secondsInAMinute;
@@ -532,7 +554,8 @@ NS.SecondsToStrTime = function( seconds )
     local remainingSeconds = minuteSeconds % secondsInAMinute;
     local seconds = math.ceil( remainingSeconds );
 	--
-	return ( days > 0 and hours == 0 and days .. " day" ) or ( days > 0 and days .. " day " .. hours .. " hr" ) or ( hours > 0 and minutes == 0 and hours .. " hr" ) or ( hours > 0 and hours .. " hr " .. minutes .. " min" ) or ( minutes > 0 and minutes .. " min" ) or seconds .. " sec";
+	local strTime = ( days > 0 and hours == 0 and days .. " day" ) or ( days > 0 and days .. " day " .. hours .. " hr" ) or ( hours > 0 and minutes == 0 and hours .. " hr" ) or ( hours > 0 and hours .. " hr " .. minutes .. " min" ) or ( minutes > 0 and minutes .. " min" ) or seconds .. " sec";
+	return colorCode and ( colorCode .. strTime .. "|r" ) or strTime;
 end
 --
 NS.StrTimeToSeconds = function( str )
@@ -561,14 +584,28 @@ NS.FormatNum = function( num )
 end
 --
 NS.MoneyToString = function( money, colorCode )
-	local moneyText = GetCoinText( money );
-	if colorCode then
-		moneyText = string.gsub( moneyText, "(%d+)", colorCode .. "%1" .. FONT_COLOR_CODE_CLOSE );
+	local negative = money < 0;
+	money = math.abs( money );
+	--
+	local gold = money >= COPPER_PER_GOLD and NS.FormatNum( math.floor( money / COPPER_PER_GOLD ) ) or nil;
+	local silver = math.floor( ( money % COPPER_PER_GOLD ) / COPPER_PER_SILVER );
+	local copper = math.floor( money % COPPER_PER_SILVER );
+	--
+	gold = ( gold and colorCode ) and ( colorCode .. gold .. FONT_COLOR_CODE_CLOSE ) or gold;
+	silver = ( silver > 0 and colorCode ) and ( colorCode .. silver .. FONT_COLOR_CODE_CLOSE ) or ( silver > 0 and silver ) or nil;
+	copper = colorCode .. copper .. FONT_COLOR_CODE_CLOSE;
+	--
+	local g,s,c = "|cffffd70ag|r","|cffc7c7cfs|r","|cffeda55fc|r";
+	local moneyText = copper .. c;
+	if silver then
+		moneyText = silver .. s .. " " .. moneyText;
 	end
-	moneyText = string.gsub( moneyText, ",", "" );
-	moneyText = string.gsub( moneyText, " Gold", "|cffffd70ag|r", 1 );
-	moneyText = string.gsub( moneyText, " Silver", "|cffc7c7cfs|r", 1 );
-	moneyText = string.gsub( moneyText, " Copper", "|cffeda55fc|r", 1 );
+	if gold then
+		moneyText = gold .. g .. " " .. moneyText;
+	end
+	if negative then
+		moneyText = colorCode and ( colorCode "-|r" .. moneyText ) or ( "-" .. moneyText );
+	end
 	return moneyText;
 end
 --
@@ -580,10 +617,6 @@ NS.FindKeyByField = function( t, f, v )
 		end
 	end
 	return nil;
-end
---
-NS.FindKeyByName = function( t, name )
-	return NS.FindKeyByField( t, "name", name );
 end
 --
 NS.PairsFindKeyByField = function( t, f, v )
@@ -636,4 +669,15 @@ NS.GetItemInfo = function( itemIdNameLink, Callback, maxAttempts, after )
 	maxAttempts = maxAttempts or 50;
 	after = after or 0.10;
 	CheckItemInfo();
+end
+--
+NS.GetWeeklyQuestResetTime = function()
+	local TUE,WED,THU = 2, 3, 4;
+	local resetWeekdays = { ["US"] = TUE, ["EU"] = WED, ["CN"] = THU, ["KR"] = THU, ["TW"] = THU };
+	local resetWeekday = resetWeekdays[GetCVar( "portal" ):upper()];
+	local resetTime = time() + GetQuestResetTime();
+	while tonumber( date( "%w", resetTime ) ) ~= resetWeekday do
+		resetTime = resetTime + 86400;
+	end
+	return resetTime;
 end

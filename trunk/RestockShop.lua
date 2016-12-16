@@ -21,6 +21,8 @@ NS.auction = {
 			visible = {},
 			overpriced = {},
 			overstock = {},
+			uneven = {},
+			one = {},
 		},
 		sortKey = nil,
 		sortOrder = nil,
@@ -102,6 +104,8 @@ NS.DefaultSavedVariables = function()
 		["flyoutPanelOpen"] = true,
 		["hideOverpricedStacks"] = true,
 		["hideOverstockStacks"] = false,
+		["hideUnevenStacks"] = false,
+		["hideOneStacks"] = false,
 		["itemTooltipShoppingListSettings"] = true,
 		["itemTooltipItemId"] = true,
 		["showDeleteItemConfirmDialog"] = true,
@@ -220,6 +224,11 @@ NS.Upgrade = function()
 			end
 		end
 	end
+	-- 4.7
+	if version < 4.7 then
+		NS.db["hideUnevenStacks"] = vars["hideUnevenStacks"];
+		NS.db["hideOneStacks"] = vars["hideOneStacks"];
+	end
 	--
 	table.insert( NS.playerLoginMsg, string.format( L["Upgraded version %s to %s"], version, NS.version ) );
 	NS.db["version"] = NS.version;
@@ -330,6 +339,8 @@ NS.Reset = function( flyoutPanelItem_OnClick )
 	wipe( NS.auction.data.groups.visible );
 	wipe( NS.auction.data.groups.overpriced );
 	wipe( NS.auction.data.groups.overstock );
+	wipe( NS.auction.data.groups.uneven );
+	wipe( NS.auction.data.groups.one );
 	NS.auction.selected.found = false;
 	NS.auction.selected.groupKey = nil;
 	NS.auction.selected.auction = nil;
@@ -346,6 +357,8 @@ NS.Reset = function( flyoutPanelItem_OnClick )
 	AuctionFrameRestockShop_NameSortButton:Click();
 	AuctionFrameRestockShop_HideOverpricedStacksButton:Reset();
 	AuctionFrameRestockShop_HideOverstockStacksButton:Reset();
+	AuctionFrameRestockShop_HideUnevenStacksButton:Reset();
+	AuctionFrameRestockShop_HideOneStacksButton:Reset();
 	AuctionFrameRestockShop_PauseResumeButton:Reset();
 	AuctionFrameRestockShop_ListStatusFrame:Reset();
 	AuctionFrameRestockShop_ScrollFrame:Reset(); -- Includes: UpdateTitleText()
@@ -445,7 +458,7 @@ NS.AuctionSortButton_OnClick = function( button, itemInfoKey )
 	end
 end
 --
-NS.HideOverpriceOverstockButton_OnClick = function( button, hide )
+NS.HideStacksButton_OnClick = function( button, hide )
 	if NS.scan.status == "scanning" or NS.scan.status == "buying" then
 		NS.Print( L["Selection ignored, busy scanning or buying"] );
 		return; -- Stop function
@@ -454,56 +467,77 @@ NS.HideOverpriceOverstockButton_OnClick = function( button, hide )
 	if NS.scan.status == "selected" then
 		AuctionFrameRestockShop_DialogFrame_BuyoutFrame_CancelButton:Click();
 	end
-	--
+	-- Show
 	NS.AuctionDataGroups_ShowOverpricedStacks();
 	NS.AuctionDataGroups_ShowOverstockStacks();
+	NS.AuctionDataGroups_ShowUnevenStacks();
+	NS.AuctionDataGroups_ShowOneStacks();
+	NS.AuctionDataGroups_Sort();
 	-- Overpriced
 	if hide == "overpriced" then
 		if NS.db["hideOverpricedStacks"] then
-			-- Show
-			NS.AuctionDataGroups_Sort();
 			NS.db["hideOverpricedStacks"] = false;
 			button:UnlockHighlight();
 		else
-			-- Hide
-			NS.AuctionDataGroups_HideOverpricedStacks();
 			NS.db["hideOverpricedStacks"] = true;
 			button:LockHighlight();
-		end
-		--
-		if NS.db["hideOverstockStacks"] then
-			NS.AuctionDataGroups_HideOverstockStacks();
 		end
 	-- Overstock
 	elseif hide == "overstock" then
 		if NS.db["hideOverstockStacks"] then
-			-- Show
-			NS.AuctionDataGroups_Sort();
 			NS.db["hideOverstockStacks"] = false;
 			button:UnlockHighlight();
 		else
-			-- Hide
-			NS.AuctionDataGroups_HideOverstockStacks();
 			NS.db["hideOverstockStacks"] = true;
 			button:LockHighlight();
 		end
-		--
-		if NS.db["hideOverpricedStacks"] then
-			NS.AuctionDataGroups_HideOverpricedStacks();
+	-- Uneven
+	elseif hide == "uneven" then
+		if NS.db["hideUnevenStacks"] then
+			NS.db["hideUnevenStacks"] = false;
+			button:UnlockHighlight();
+		else
+			NS.db["hideUnevenStacks"] = true;
+			button:LockHighlight();
 		end
+	-- One
+	elseif hide == "one" then
+		if NS.db["hideOneStacks"] then
+			NS.db["hideOneStacks"] = false;
+			button:UnlockHighlight();
+		else
+			NS.db["hideOneStacks"] = true;
+			button:LockHighlight();
+		end
+	end
+	-- Hide
+	if NS.db["hideOverpricedStacks"] then
+		NS.AuctionDataGroups_HideOverpricedStacks();
+	end
+	--
+	if NS.db["hideOverstockStacks"] then
+		NS.AuctionDataGroups_HideOverstockStacks();
+	end
+	--
+	if NS.db["hideUnevenStacks"] then
+		NS.AuctionDataGroups_HideUnevenStacks();
+	end
+	--
+	if NS.db["hideOneStacks"] then
+		NS.AuctionDataGroups_HideOneStacks();
 	end
 	--
 	GameTooltip:SetText( button.tooltip() );
 	--
 	if next( NS.auction.data.groups.visible ) then
 		-- Auctions shown
-		if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+		if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 			NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 		else
 			NS.StatusFrame_Message( L["Select an auction to buy or click \"Buy All\""] );
 		end
 		AuctionFrameRestockShop_BuyAllButton:Enable();
-	elseif next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+	elseif next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 		-- Auctions hidden
 		NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 		AuctionFrameRestockShop_BuyAllButton:Disable();
@@ -573,6 +607,8 @@ NS.AuctionDataGroups_OnHandQtyChanged = function()
 	-- ONLY Updates or Removes Groups for the ItemId that was won
 	NS.AuctionDataGroups_ShowOverpricedStacks();
 	NS.AuctionDataGroups_ShowOverstockStacks();
+	NS.AuctionDataGroups_ShowUnevenStacks();
+	NS.AuctionDataGroups_ShowOneStacks();
 	--
 	local groupKey = 1;
 	while groupKey <= #NS.auction.data.groups.visible do
@@ -604,8 +640,15 @@ NS.AuctionDataGroups_OnHandQtyChanged = function()
 	if NS.db["hideOverstockStacks"] then
 		NS.AuctionDataGroups_HideOverstockStacks();
 	end
+	--
+	if NS.db["hideUnevenStacks"] then
+		NS.AuctionDataGroups_HideUnevenStacks();
+	end
+	--
+	if NS.db["hideOneStacks"] then
+		NS.AuctionDataGroups_HideOneStacks();
+	end
 end
-
 --
 NS.AuctionDataGroups_HideOverpricedStacks = function()
 	-- Remove: If pctMaxPrice > 100
@@ -626,7 +669,6 @@ NS.AuctionDataGroups_HideOverpricedStacks = function()
 		end
 	end
 end
-
 --
 NS.AuctionDataGroups_ShowOverpricedStacks = function()
 	-- Run this function when:
@@ -637,7 +679,6 @@ NS.AuctionDataGroups_ShowOverpricedStacks = function()
 		table.insert( NS.auction.data.groups.visible, table.remove( NS.auction.data.groups.overpriced ) );
 	end
 end
-
 --
 NS.AuctionDataGroups_HideOverstockStacks = function()
 	-- Remove: If ( ( onHandQty + count ) * 100 ) / fullStockQty > 100 + {overstockStacksPct}
@@ -659,7 +700,6 @@ NS.AuctionDataGroups_HideOverstockStacks = function()
 		end
 	end
 end
-
 --
 NS.AuctionDataGroups_ShowOverstockStacks = function()
 	-- Run this function when:
@@ -670,7 +710,66 @@ NS.AuctionDataGroups_ShowOverstockStacks = function()
 		table.insert( NS.auction.data.groups.visible, table.remove( NS.auction.data.groups.overstock ) );
 	end
 end
-
+--
+NS.AuctionDataGroups_HideUnevenStacks = function()
+	-- Remove: If count (i.e. stack size) is not evenly divisible by 5
+	-- Run this function when:
+		-- a) Auction is won (NS.AuctionDataGroups_OnHandQtyChanged)
+		-- b) Inside NS.ScanAuctionQueue() just before NS.ScanComplete()
+		-- c) User toggles either Hide button
+	local groupKey = 1;
+	while groupKey <= #NS.auction.data.groups.visible do
+		local group = NS.auction.data.groups.visible[groupKey];
+		--
+		if group["count"] % 5 > 0 then
+			-- Remove and insert
+			table.insert( NS.auction.data.groups.uneven, table.remove( NS.auction.data.groups.visible, groupKey ) );
+		else
+			-- Increment to try the next group
+			groupKey = groupKey + 1;
+		end
+	end
+end
+--
+NS.AuctionDataGroups_ShowUnevenStacks = function()
+	-- Run this function when:
+		-- a) Auction is won (NS.AuctionDataGroups_OnHandQtyChanged)
+		-- b) User toggles either Hide button
+	while #NS.auction.data.groups.uneven > 0 do
+		-- Remove and insert
+		table.insert( NS.auction.data.groups.visible, table.remove( NS.auction.data.groups.uneven ) );
+	end
+end
+--
+NS.AuctionDataGroups_HideOneStacks = function()
+	-- Remove: If count (i.e. stack size) is 1
+	-- Run this function when:
+		-- a) Auction is won (NS.AuctionDataGroups_OnHandQtyChanged)
+		-- b) Inside NS.ScanAuctionQueue() just before NS.ScanComplete()
+		-- c) User toggles either Hide button
+	local groupKey = 1;
+	while groupKey <= #NS.auction.data.groups.visible do
+		local group = NS.auction.data.groups.visible[groupKey];
+		--
+		if group["count"] == 1 then
+			-- Remove and insert
+			table.insert( NS.auction.data.groups.one, table.remove( NS.auction.data.groups.visible, groupKey ) );
+		else
+			-- Increment to try the next group
+			groupKey = groupKey + 1;
+		end
+	end
+end
+--
+NS.AuctionDataGroups_ShowOneStacks = function()
+	-- Run this function when:
+		-- a) Auction is won (NS.AuctionDataGroups_OnHandQtyChanged)
+		-- b) User toggles either Hide button
+	while #NS.auction.data.groups.one > 0 do
+		-- Remove and insert
+		table.insert( NS.auction.data.groups.visible, table.remove( NS.auction.data.groups.one ) );
+	end
+end
 --
 NS.AuctionDataGroups_FindGroupKey = function( itemLink, count, itemPrice )
 	local groups = NS.auction.data.groups.visible;
@@ -681,7 +780,6 @@ NS.AuctionDataGroups_FindGroupKey = function( itemLink, count, itemPrice )
 	end
 	return nil;
 end
-
 --
 NS.AuctionDataGroups_RemoveItemId = function( itemId )
 	-- This function is run just before raw data from a RESCAN is used to form new data groups, out with the old before in with the new
@@ -720,8 +818,18 @@ NS.AuctionDataGroups_RemoveItemId = function( itemId )
 			groupKey = groupKey + 1;
 		end
 	end
+	-- One
+	local groupKey = 1;
+	while groupKey <= #NS.auction.data.groups.one do
+		if NS.auction.data.groups.one[groupKey]["itemId"] == itemId then
+			-- Match, remove group
+			table.remove( NS.auction.data.groups.one, groupKey );
+		else
+			-- Not a match, increment to try next group
+			groupKey = groupKey + 1;
+		end
+	end
 end
-
 --
 NS.AuctionDataGroups_ImportRawData = function()
 	for itemId, pages in pairs( NS.auction.data.raw ) do -- [ItemId] => [Page] => [Index] => ItemInfo
@@ -771,11 +879,18 @@ NS.AuctionDataGroups_ImportRawData = function()
 		NS.AuctionDataGroups_HideOverstockStacks();
 	end
 	--
+	if NS.db["hideUnevenStacks"] then
+		NS.AuctionDataGroups_HideUnevenStacks();
+	end
+	--
+	if NS.db["hideOneStacks"] then
+		NS.AuctionDataGroups_HideOneStacks();
+	end
+	--
 	NS.AuctionDataGroups_Sort();
 	-- Cleans page of raw data that was just imported
 	wipe( NS.auction.data.raw[NS.scan.query.item["itemId"]] );
 end
-
 --
 NS.AuctionDataGroups_Sort = function()
 	if not next( NS.auction.data.groups.visible ) then return end
@@ -1099,14 +1214,14 @@ function NS.scan:Complete()
 		AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:Update(); -- Update scanTexture, Checks and Highlight
 		--
 		if next( NS.auction.data.groups.visible ) then
-			if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+			if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 				NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 			else
 				NS.StatusFrame_Message( L["Select an auction to buy or click \"Buy All\""] );
 			end
 			AuctionFrameRestockShop_BuyAllButton:Enable();
 		else
-			if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+			if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 				NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 			else
 				NS.StatusFrame_Message( L["No auctions were found that matched your settings"] );
@@ -1117,7 +1232,7 @@ function NS.scan:Complete()
 		local auction = NS.auction.selected.auction;
 		--
 		if not NS.auction.selected.found then
-			NS.Print( string.format( L["%s%sx%d|r for %s is no longer on page %s"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:MoneyToString( auction["buyoutPrice"], HIGHLIGHT_FONT_COLOR_CODE, "OPT_PAD" ), ( auction["page"] + 1 ) ) );
+			NS.Print( string.format( L["%s%sx%d|r for %s is no longer on page %s"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], NS.MoneyToString( auction["buyoutPrice"], HIGHLIGHT_FONT_COLOR_CODE ), ( auction["page"] + 1 ) ) );
 			NS.Print( string.format( L["Rescanning %s"], auction["itemLink"] ) );
 			self:RescanItem();
 			return; -- Stop function, starting rescan
@@ -1136,14 +1251,14 @@ function NS.scan:Complete()
 		local auction = NS.auction.selected.auction;
 		NS.auction.selected.groupKey = NS.AuctionDataGroups_FindGroupKey( auction["itemLink"], auction["count"], auction["itemPrice"] );
 		if not NS.auction.selected.groupKey then
-			NS.Print( string.format( L["%s%sx%d|r for %s is no longer available"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:MoneyToString( auction["buyoutPrice"], HIGHLIGHT_FONT_COLOR_CODE, "OPT_PAD" ) ) );
+			NS.Print( string.format( L["%s%sx%d|r for %s is no longer available"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], NS.MoneyToString( auction["buyoutPrice"], HIGHLIGHT_FONT_COLOR_CODE ) ) );
 			AuctionFrameRestockShop_FlyoutPanel_ScrollFrame:Update(); -- Update scanTexture
 			if next( NS.auction.data.groups.visible ) then
 				if NS.buyAll then
 					NS.AuctionGroup_OnClick( 1 );
 				else
 					NS.AuctionGroup_Deselect();
-					if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+					if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 						NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 					else
 						NS.StatusFrame_Message( L["Select an auction to buy or click \"Buy All\""] );
@@ -1152,7 +1267,7 @@ function NS.scan:Complete()
 				end
 			else
 				NS.AuctionGroup_Deselect();
-				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 				else
 					NS.StatusFrame_Message( L["No additional auctions matched your settings"] );
@@ -1160,7 +1275,7 @@ function NS.scan:Complete()
 				AuctionFrameRestockShop_BuyAllButton:Reset();
 			end
 		else
-			NS.Print( string.format( L["%s%sx%d|r for %s was found!"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], TSMAPI:MoneyToString( auction["buyoutPrice"], HIGHLIGHT_FONT_COLOR_CODE, "OPT_PAD" ) ) );
+			NS.Print( string.format( L["%s%sx%d|r for %s was found!"], auction["itemLink"], YELLOW_FONT_COLOR_CODE, auction["count"], NS.MoneyToString( auction["buyoutPrice"], HIGHLIGHT_FONT_COLOR_CODE ) ) );
 			NS.AuctionGroup_OnClick( NS.auction.selected.groupKey );
 		end
 	end
@@ -1272,7 +1387,7 @@ function NS.scan:OnUIErrorMessage( ... ) -- UI_ERROR_MESSAGE
 					NS.AuctionGroup_OnClick( 1 );
 				else
 					AuctionFrameRestockShop_ScrollFrame:Update();
-					if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+					if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 						NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 					else
 						NS.StatusFrame_Message( L["Select an auction to buy or click \"Buy All\""] );
@@ -1282,7 +1397,7 @@ function NS.scan:OnUIErrorMessage( ... ) -- UI_ERROR_MESSAGE
 			else
 				-- No auctions exist
 				AuctionFrameRestockShop_ScrollFrame:Update();
-				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 				else
 					NS.StatusFrame_Message( L["No additional auctions matched your settings"] );
@@ -1331,7 +1446,7 @@ function NS.scan:AfterAuctionWon()
 				NextAuction( 1 );
 			else
 				NS.AuctionGroup_Deselect();
-				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 				else
 					NS.StatusFrame_Message( L["Select an auction to buy or click \"Buy All\""] );
@@ -1341,7 +1456,7 @@ function NS.scan:AfterAuctionWon()
 		else
 			-- No auctions exist
 			NS.AuctionGroup_Deselect();
-			if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+			if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 				NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["No additional auctions matched your settings"] );
 			else
 				NS.StatusFrame_Message( L["No additional auctions matched your settings"] );
@@ -1388,7 +1503,6 @@ function NS.scan:AfterAuctionWon()
 		end
 	end
 end
-
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- Misc
 --------------------------------------------------------------------------------------------------------------------------------------------
@@ -1416,16 +1530,16 @@ NS.AddTooltipData = function( self, ... )
 			local restockPct = NS.RestockPct( onHandQty, item["fullStockQty"] );
 			local restockColor = NS.RestockColor( "code", restockPct, item["maxPricePct"] );
 			local maxPrice,status = NS.MaxPrice( itemValue, restockPct, item["maxPricePct"] );
-			maxPrice = maxPrice == 0 and "" or TSMAPI:MoneyToString( maxPrice, HIGHLIGHT_FONT_COLOR_CODE, "OPT_PAD" ) .. " "; -- If full stock and no full price then leave it blank
+			maxPrice = maxPrice == 0 and "" or NS.MoneyToString( maxPrice, HIGHLIGHT_FONT_COLOR_CODE ) .. " "; -- If full stock and no full price then leave it blank
 			status = restockColor .. L[status] .. FONT_COLOR_CODE_CLOSE;
 			restockPct = restockColor .. math.floor( restockPct ) .. "%" .. FONT_COLOR_CODE_CLOSE;
 			local maxRestockCost;
 			if itemValue == 0 then
 				itemValue,maxPrice = nil,nil;
 			else
-				itemValue = TSMAPI:MoneyToString( itemValue, HIGHLIGHT_FONT_COLOR_CODE, "OPT_PAD" );
+				itemValue = NS.MoneyToString( itemValue, HIGHLIGHT_FONT_COLOR_CODE );
 				maxRestockCost = NS.MaxRestockItemInfo( item );
-				maxRestockCost = maxRestockCost == 0 and ( NS.colorCode.tooltip .. "(|r" .. status .. NS.colorCode.tooltip .. ")|r" ) or TSMAPI:MoneyToString( maxRestockCost, HIGHLIGHT_FONT_COLOR_CODE, "OPT_PAD" );
+				maxRestockCost = maxRestockCost == 0 and ( NS.colorCode.tooltip .. "(|r" .. status .. NS.colorCode.tooltip .. ")|r" ) or NS.MoneyToString( maxRestockCost, HIGHLIGHT_FONT_COLOR_CODE );
 			end
 			-- Add lines to tooltip
 			self:AddLine( YELLOW_FONT_COLOR_CODE .. NS.title .. ":|r" );
@@ -1811,7 +1925,7 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 				AuctionFrameRestockShop_BuyAllButton:Click();
 			else
 				NS.AuctionGroup_Deselect();
-				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Select an auction to buy or click \"Buy All\""] );
 				else
 					NS.StatusFrame_Message( L["Select an auction to buy or click \"Buy All\""] );
@@ -1876,7 +1990,7 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 			if NS.buyAll then
 				NS.buyAll = false;
 				self:SetText( L["Buy All"] );
-				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) then
+				if next( NS.auction.data.groups.overpriced ) or next( NS.auction.data.groups.overstock ) or next( NS.auction.data.groups.uneven ) or next( NS.auction.data.groups.one ) then
 					NS.StatusFrame_Message( L["Hidden auctions available."] .. " " .. L["Buy All has been stopped"] .. ". " .. L["Select an auction to buy or click \"Buy All\""] );
 				else
 					NS.StatusFrame_Message( L["Buy All has been stopped"] .. ". " .. L["Select an auction to buy or click \"Buy All\""] );
@@ -1930,7 +2044,7 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 		tooltip = function()
 			local maxRestockCost,maxRestockLowCount,maxRestockNormalCount,maxRestockOnHandQty,maxRestockFullStockQty = NS.MaxRestockListInfo();
 			local fullStockShortage = NS.FormatNum( maxRestockLowCount + maxRestockNormalCount );
-			maxRestockCost = fullStockShortage == "0" and ( HIGHLIGHT_FONT_COLOR_CODE .. "(" .. L["Full"] .. ")" .. FONT_COLOR_CODE_CLOSE ) or TSMAPI:MoneyToString( maxRestockCost, HIGHLIGHT_FONT_COLOR_CODE, "OPT_PAD" );
+			maxRestockCost = fullStockShortage == "0" and ( HIGHLIGHT_FONT_COLOR_CODE .. "(" .. L["Full"] .. ")" .. FONT_COLOR_CODE_CLOSE ) or NS.MoneyToString( maxRestockCost, HIGHLIGHT_FONT_COLOR_CODE );
 			--
 			GameTooltip:AddLine( HIGHLIGHT_FONT_COLOR_CODE .. NS.db["shoppingLists"][NS.currentListKey]["name"] .. FONT_COLOR_CODE_CLOSE );
 			GameTooltip:AddDoubleLine( L["Item Value Source"] .. ": ", HIGHLIGHT_FONT_COLOR_CODE .. NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] .. FONT_COLOR_CODE_CLOSE );
@@ -2145,16 +2259,14 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 				return tooltip .. "\n\n" .. RED_FONT_COLOR_CODE .. L["Scanning..."] .. FONT_COLOR_CODE_CLOSE;
 			else
 				local numAuctions = 0;
-				if next( NS.auction.data.groups.overpriced ) then
-					for _,group in ipairs( NS.auction.data.groups.overpriced ) do
-						numAuctions = numAuctions + group["numAuctions"];
-					end
+				for _,group in ipairs( NS.auction.data.groups.overpriced ) do
+					numAuctions = numAuctions + group["numAuctions"];
 				end
 				return tooltip .. "\n\n" .. RED_FONT_COLOR_CODE .. string.format( L["%d Auctions Hidden"], numAuctions ) .. FONT_COLOR_CODE_CLOSE;
 			end
 		end,
 		OnClick = function ( self )
-			NS.HideOverpriceOverstockButton_OnClick( self, "overpriced" );
+			NS.HideStacksButton_OnClick( self, "overpriced" );
 		end,
 		OnLoad = function( self )
 			self.tooltipAnchor = { self, "ANCHOR_BOTTOMRIGHT", 3, 32 };
@@ -2163,6 +2275,9 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 					self:LockHighlight();
 				end
 			end
+			self:GetNormalTexture():SetVertexColor( 1.0, 0.1, 0.1 );
+			self:GetPushedTexture():SetVertexColor( 1.0, 0.1, 0.1 );
+			self:GetHighlightTexture():SetVertexColor( 1.0, 0.1, 0.1 );
 		end,
 	} );
 	NS.Button( "_HideOverstockStacksButton", AuctionFrameRestockShop, nil, {
@@ -2180,16 +2295,14 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 				return tooltip .. "\n\n" .. NS.colorCode.full .. L["Scanning..."] .. FONT_COLOR_CODE_CLOSE;
 			else
 				local numAuctions = 0;
-				if next( NS.auction.data.groups.overstock ) then
-					for _,group in ipairs( NS.auction.data.groups.overstock ) do
-						numAuctions = numAuctions + group["numAuctions"];
-					end
+				for _,group in ipairs( NS.auction.data.groups.overstock ) do
+					numAuctions = numAuctions + group["numAuctions"];
 				end
 				return tooltip .. "\n\n" .. NS.colorCode.full .. string.format( L["%d Auctions Hidden"], numAuctions ) .. FONT_COLOR_CODE_CLOSE;
 			end
 		end,
 		OnClick = function ( self )
-			NS.HideOverpriceOverstockButton_OnClick( self, "overstock" );
+			NS.HideStacksButton_OnClick( self, "overstock" );
 		end,
 		OnLoad = function( self )
 			self.tooltipAnchor = { self, "ANCHOR_BOTTOMRIGHT", 3, 32 };
@@ -2198,6 +2311,81 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 					self:LockHighlight();
 				end
 			end
+			self:GetNormalTexture():SetVertexColor( 0.25, 0.75, 0.25 );
+			self:GetPushedTexture():SetVertexColor( 0.25, 0.75, 0.25 );
+			self:GetHighlightTexture():SetVertexColor( 0.25, 0.75, 0.25 );
+		end,
+	} );
+	NS.Button( "_HideUnevenStacksButton", AuctionFrameRestockShop, nil, {
+		template = false,
+		size = { 32, 32 },
+		setPoint = { "TOP", "#sibling", "BOTTOM", 0, -3 },
+		normalTexture = "Interface\\FriendsFrame\\UI-FriendsList-Large-Up",
+		pushedTexture = "Interface\\FriendsFrame\\UI-FriendsList-Large-Down",
+		highlightTexture = "Interface\\FriendsFrame\\UI-FriendsList-Highlight",
+		tooltip = function()
+			local tooltip =  string.format( L["%sHide Uneven Stacks|r\n\nHides auctions not evenly divisible by 5\nShow only stacks of 5, 10, 15, 20, etc."], NS.colorCode.norm );
+			if not NS.db["hideUnevenStacks"] or AuctionFrameRestockShop_ListStatusFrame:IsShown() then
+				return tooltip;
+			elseif NS.scan.status == "scanning" then
+				return tooltip .. "\n\n" .. NS.colorCode.norm .. L["Scanning..."] .. FONT_COLOR_CODE_CLOSE;
+			else
+				local numAuctions = 0;
+				for _,group in ipairs( NS.auction.data.groups.uneven ) do
+					numAuctions = numAuctions + group["numAuctions"];
+				end
+				return tooltip .. "\n\n" .. NS.colorCode.norm .. string.format( L["%d Auctions Hidden"], numAuctions ) .. FONT_COLOR_CODE_CLOSE;
+			end
+		end,
+		OnClick = function ( self )
+			NS.HideStacksButton_OnClick( self, "uneven" );
+		end,
+		OnLoad = function( self )
+			self.tooltipAnchor = { self, "ANCHOR_BOTTOMRIGHT", 3, 32 };
+			function self:Reset()
+				if NS.db["hideUnevenStacks"] then
+					self:LockHighlight();
+				end
+			end
+			self:GetNormalTexture():SetVertexColor( 1.0, 1.0, 0.0 );
+			self:GetPushedTexture():SetVertexColor( 1.0, 1.0, 0.0 );
+			self:GetHighlightTexture():SetVertexColor( 1.0, 1.0, 0.0 );
+		end,
+	} );
+	NS.Button( "_HideOneStacksButton", AuctionFrameRestockShop, nil, {
+		template = false,
+		size = { 32, 32 },
+		setPoint = { "TOP", "#sibling", "BOTTOM", 0, -3 },
+		normalTexture = "Interface\\FriendsFrame\\UI-FriendsList-Large-Up",
+		pushedTexture = "Interface\\FriendsFrame\\UI-FriendsList-Large-Down",
+		highlightTexture = "Interface\\FriendsFrame\\UI-FriendsList-Highlight",
+		tooltip = function()
+			local tooltip =  string.format( L["%sHide One Stacks|r\n\nHides auctions with a stack size of 1"], NS.colorCode.low );
+			if not NS.db["hideOneStacks"] or AuctionFrameRestockShop_ListStatusFrame:IsShown() then
+				return tooltip;
+			elseif NS.scan.status == "scanning" then
+				return tooltip .. "\n\n" .. NS.colorCode.low .. L["Scanning..."] .. FONT_COLOR_CODE_CLOSE;
+			else
+				local numAuctions = 0;
+				for _,group in ipairs( NS.auction.data.groups.one ) do
+					numAuctions = numAuctions + group["numAuctions"];
+				end
+				return tooltip .. "\n\n" .. NS.colorCode.low .. string.format( L["%d Auctions Hidden"], numAuctions ) .. FONT_COLOR_CODE_CLOSE;
+			end
+		end,
+		OnClick = function ( self )
+			NS.HideStacksButton_OnClick( self, "one" );
+		end,
+		OnLoad = function( self )
+			self.tooltipAnchor = { self, "ANCHOR_BOTTOMRIGHT", 3, 32 };
+			function self:Reset()
+				if NS.db["hideOneStacks"] then
+					self:LockHighlight();
+				end
+			end
+			self:GetNormalTexture():SetVertexColor( 1.0, 0.5, 0.25 );
+			self:GetPushedTexture():SetVertexColor( 1.0, 0.5, 0.25 );
+			self:GetHighlightTexture():SetVertexColor( 1.0, 0.5, 0.25 );
 		end,
 	} );
 	NS.Button( "_PauseResumeButton", AuctionFrameRestockShop, nil, {

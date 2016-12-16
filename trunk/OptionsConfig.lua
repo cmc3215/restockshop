@@ -496,7 +496,7 @@ NS.options.cfg = {
 					tooltip = function()
 						local maxRestockCost,maxRestockLowCount,maxRestockNormalCount,maxRestockOnHandQty,maxRestockFullStockQty = NS.MaxRestockListInfo();
 						local fullStockShortage = NS.FormatNum( maxRestockLowCount + maxRestockNormalCount );
-						maxRestockCost = fullStockShortage == "0" and ( HIGHLIGHT_FONT_COLOR_CODE .. "(" .. L["Full"] .. ")" .. FONT_COLOR_CODE_CLOSE ) or TSMAPI:MoneyToString( maxRestockCost, HIGHLIGHT_FONT_COLOR_CODE, "OPT_PAD" );
+						maxRestockCost = fullStockShortage == "0" and ( HIGHLIGHT_FONT_COLOR_CODE .. "(" .. L["Full"] .. ")" .. FONT_COLOR_CODE_CLOSE ) or NS.MoneyToString( maxRestockCost, HIGHLIGHT_FONT_COLOR_CODE );
 						--
 						GameTooltip:AddLine( HIGHLIGHT_FONT_COLOR_CODE .. NS.db["shoppingLists"][NS.currentListKey]["name"] .. FONT_COLOR_CODE_CLOSE );
 						GameTooltip:AddDoubleLine( L["Full Stock"] .. ": ",  HIGHLIGHT_FONT_COLOR_CODE .. NS.FormatNum( maxRestockFullStockQty ) .. FONT_COLOR_CODE_CLOSE );
