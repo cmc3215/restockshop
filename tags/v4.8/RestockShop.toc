@@ -1,0 +1,16 @@
+## Interface: 70100
+## Title: RestockShop
+## Version: 4.8
+## Author: Clinton Caldwell
+## Notes: A fast shopping list tool to restock items at your ideal quantity and price.
+## SavedVariables: RESTOCKSHOP_SAVEDVARIABLES
+## SavedVariablesPerCharacter: RESTOCKSHOP_SAVEDVARIABLESPERCHARACTER
+## Dependencies: TradeSkillMaster
+## OptionalDeps: Auc-Advanced,Auctionator,TradeSkillMaster_AuctionDB
+
+Templates.xml
+Localization.lua
+Base.lua
+RestockShop.lua
+OptionsConfig.lua
+OptionsCreate.lua
