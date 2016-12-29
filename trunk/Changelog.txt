@@ -1,3 +1,8 @@
+**4.8**
+
+- Release date: 12/28/2016
+- Bug fix and modification, some addons that modify the tooltip were causing a Lua error with the strtrim function. So I've removed blank lines above and below info and put the Item ID under the RestockShop header.
+
 **4.7**
 
 - Release date: 12/15/2016

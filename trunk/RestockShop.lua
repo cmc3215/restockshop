@@ -1512,6 +1512,8 @@ NS.AddTooltipData = function( self, ... )
 	local itemName, itemLink = self:GetItem();
 	local itemId = itemLink and tonumber( string.match( itemLink, "item:(%d+):" ) ) or nil;
 	if not itemId then return end
+	-- Header
+	self:AddLine( YELLOW_FONT_COLOR_CODE .. NS.title .. ":|r" );
 	-- Shopping List Settings
 	if NS.db["itemTooltipShoppingListSettings"] then
 		local itemKey = NS.FindItemKey( itemId );
@@ -1519,10 +1521,6 @@ NS.AddTooltipData = function( self, ... )
 			--
 			-- Item found in current shopping list, show settings
 			--
-			-- First, add blank line spacer if line is not blank
-			if strtrim( _G[self:GetName() .. "TextLeft" .. self:NumLines()]:GetText() ) ~= "" then
-				self:AddLine( " " );
-			end
 			-- Prepare and format settings
 			local item = NS.db["shoppingLists"][NS.currentListKey]["items"][itemKey];
 			local itemValue = NS.GetItemValue( item["link"] );
@@ -1542,7 +1540,6 @@ NS.AddTooltipData = function( self, ... )
 				maxRestockCost = maxRestockCost == 0 and ( NS.colorCode.tooltip .. "(|r" .. status .. NS.colorCode.tooltip .. ")|r" ) or NS.MoneyToString( maxRestockCost, HIGHLIGHT_FONT_COLOR_CODE );
 			end
 			-- Add lines to tooltip
-			self:AddLine( YELLOW_FONT_COLOR_CODE .. NS.title .. ":|r" );
 			self:AddLine( "  " .. NS.colorCode.tooltip .. L["List"] .. ":|r " .. HIGHLIGHT_FONT_COLOR_CODE .. NS.db["shoppingLists"][NS.currentListKey]["name"] );
 			self:AddLine( "  " .. NS.colorCode.tooltip .. L["On Hand"] .. ":|r " .. HIGHLIGHT_FONT_COLOR_CODE .. onHandQty .. "|r " .. NS.colorCode.tooltip .. "(|r" .. restockPct .. NS.colorCode.tooltip .. ")|r" );
 			self:AddLine( "  " .. NS.colorCode.tooltip .. L["Full Stock"] .. ":|r " .. HIGHLIGHT_FONT_COLOR_CODE .. item["fullStockQty"] );
@@ -1552,12 +1549,12 @@ NS.AddTooltipData = function( self, ... )
 			self:AddLine( "  " .. NS.colorCode.tooltip .. L["Item Value"] .. ":|r " .. ( itemValue and ( itemValue .. " " .. NS.colorCode.tooltip .. "(" .. NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] .. ")|r" ) or ( RED_FONT_COLOR_CODE .. string.format( L["Requires %s Data"], NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] ) .. FONT_COLOR_CODE_CLOSE ) ) );
 			self:AddLine( "  " .. NS.colorCode.tooltip .. L["Max Price"] .. ":|r " .. ( maxPrice and ( maxPrice .. NS.colorCode.tooltip .. "(|r" .. status .. NS.colorCode.tooltip .. ")|r"  ) or ( RED_FONT_COLOR_CODE .. L["Requires Item Value"] .. FONT_COLOR_CODE_CLOSE ) ) );
 			self:AddLine( "  " .. NS.colorCode.tooltip .. L["Max Restock Cost"] .. ":|r " .. ( maxRestockCost and maxRestockCost or ( RED_FONT_COLOR_CODE .. L["Requires Item Value"] .. FONT_COLOR_CODE_CLOSE ) ) );
-			self:AddLine( "  " ); -- Blank line at bottom
 		end
 	end
 	-- Item Id
 	if NS.db["itemTooltipItemId"] then
-		self:AddLine( L["Item ID"] .. " " .. itemId  );
+		-- Add line to tooltip
+		self:AddLine( "  " .. NS.colorCode.tooltip .. L["Item ID"] .. ":|r " .. HIGHLIGHT_FONT_COLOR_CODE .. itemId );
 	end
 	-- Makes added lines show immediately
 	self:Show();
