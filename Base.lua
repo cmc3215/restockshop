@@ -282,12 +282,22 @@ NS.ScrollFrame = function( name, parent, set )
 	-- Scrollbar Textures
 	local tx = f:CreateTexture( nil, "ARTWORK" );
 	tx:SetTexture( "Interface\\PaperDollInfoFrame\\UI-Character-ScrollBar" );
-	tx:SetSize( 31, math.floor( ( set.size[2] * 80 ) / 100 ) );
+	tx:SetSize( 31, 250 );
 	tx:SetPoint( "TOPLEFT", "$parent", "TOPRIGHT", -2, 5 );
 	tx:SetTexCoord( 0, 0.484375, 0, 1.0 );
+	--
+	local baseScrollbarSize = ( 250 - 5 ) + ( 100 - 2 );
+	if set.size[2] > baseScrollbarSize then
+		tx = f:CreateTexture( nil, "ARTWORK" );
+		tx:SetTexture( "Interface\\PaperDollInfoFrame\\UI-Character-ScrollBar" );
+		tx:SetSize( 31, set.size[2] - baseScrollbarSize  );
+		tx:SetPoint( "TOPLEFT", "$parent", "TOPRIGHT", -2, ( -250 + 5 ) );
+		tx:SetTexCoord( 0, 0.484375, 0.1, 0.9 );
+	end
+	--
 	tx = f:CreateTexture( nil, "ARTWORK" );
 	tx:SetTexture( "Interface\\PaperDollInfoFrame\\UI-Character-ScrollBar" );
-	tx:SetSize( 31, math.floor( ( set.size[2] * 30 ) / 100 ) );
+	tx:SetSize( 31, 100 );
 	tx:SetPoint( "BOTTOMLEFT", "$parent", "BOTTOMRIGHT", -2, -2 );
 	tx:SetTexCoord( 0.515625, 1.0, 0, 0.4140625 );
 	--
