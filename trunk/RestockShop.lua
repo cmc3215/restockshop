@@ -614,6 +614,25 @@ NS.AuctionDataGroups_OnHandQtyChanged = function()
 	while groupKey <= #NS.auction.data.groups.visible do
 		local group = NS.auction.data.groups.visible[groupKey];
 		if group["itemId"] == NS.auction.selected.auction["itemId"] then
+			-- Reindex
+			for i = 1, #group["auctions"] do
+				local auction = group["auctions"][i];
+				-- Greater page
+				if auction["page"] > NS.auction.selected.auction["page"] then
+					-- Move index only
+					if auction["index"] > 1 then
+						auction["index"] = auction["index"] - 1;
+					-- Move index and page
+					else
+						auction["index"] = NUM_AUCTION_ITEMS_PER_PAGE;
+						auction["page"] = auction["page"] - 1;
+					end
+				-- Greater index
+				elseif auction["page"] == NS.auction.selected.auction["page"] and auction["index"] > NS.auction.selected.auction["index"] then
+					auction["index"] = auction["index"] - 1;
+				end
+			end
+			--
 			local onHandQty = NS.QOH( group["itemLinkGeneric"] );
 			local restockPct = NS.RestockPct( onHandQty, group["fullStockQty"] );
 			local pctMaxPrice = math.ceil( ( group["itemPrice"] * 100 ) / NS.MaxPrice( group["itemValue"], restockPct, NS.scan.items[group["itemId"]]["maxPricePct"] ) );
@@ -1089,7 +1108,7 @@ function NS.scan:GetAuctionItemInfo( index )
 				then
 					-- SELECT MATCH FOUND!
 					NS.auction.selected.found = true;
-					NS.auction.selected.auction.index = index; -- Set index for buying
+					NS.auction.selected.auction["buyoutIndex"] = index; -- Set index for buying
 					NS.auction.selected.auction["buyoutPrice"] = buyoutPrice; -- Set again to make sure minor variations in buyoutPrice don't prevent buying the itemPrice selected
 					return "found";
 				end
@@ -1104,6 +1123,7 @@ function NS.scan:GetAuctionItemInfo( index )
 					["buyoutPrice"] = buyoutPrice,
 					["itemLink"] = itemLink,
 					["page"] = self.query.page,
+					["index"] = index,
 				};
 			end
 		end
@@ -1941,7 +1961,7 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 				AuctionFrameRestockShop_ShopButton:Disable();
 				AuctionFrameRestockShop_BuyAllButton:Disable();
 				RestockShopEventsFrame:RegisterEvent( "CHAT_MSG_SYSTEM" );
-				PlaceAuctionBid( "list", NS.auction.selected.auction.index, NS.auction.selected.auction["buyoutPrice"] );
+				PlaceAuctionBid( "list", NS.auction.selected.auction["buyoutIndex"], NS.auction.selected.auction["buyoutPrice"] );
 			end
 		end,
 	} );
