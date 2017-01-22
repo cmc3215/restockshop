@@ -1,3 +1,8 @@
+**4.9**
+
+- Release date: 01/21/2017
+- Buying an auction now causes an internal reindexing of results to help prevent and/or reduce the need for rescanning an item.
+
 **4.8**
 
 - Release date: 12/28/2016
