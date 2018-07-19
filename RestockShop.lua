@@ -3,6 +3,9 @@
 --------------------------------------------------------------------------------------------------------------------------------------------
 local NS = select( 2, ... );
 local L = NS.localization;
+NS.releasePatch = "8.0.1";
+NS.versionString = "5.1";
+NS.version = tonumber( NS.versionString );
 --
 NS.options = {};
 --
@@ -44,7 +47,7 @@ NS.colorCode = {
 	norm = YELLOW_FONT_COLOR_CODE,
 	full = "|cff3fbf3f",
 	maxFull = GRAY_FONT_COLOR_CODE,
-	tooltip = TSMAPI.Design:GetInlineColor( "tooltip" ) or "|cff7674d9",
+	tooltip = not TSMAPI_FOUR and TSMAPI.Design:GetInlineColor( "tooltip" ) or "|cff8282fa", -- TradeSkillMaster\Core\Service\Tooltip\Core.lua:115 --- r, g, b = 130, 130, 250
 	quality = {
 		[0] = "|c" .. select( 4, GetItemQualityColor( 0 ) ),
 		[1] = "|c" .. select( 4, GetItemQualityColor( 1 ) ),
@@ -88,8 +91,8 @@ for i = 1, GetNumAddOns() do
 end
 local optAddons = { "Auc-Advanced", "Auctionator", "TradeSkillMaster_AuctionDB" };
 for i = 1, #optAddons do
-	if addonLoaded[optAddons[i]] then
-		break -- Stop checking, we only needed one enabled
+	if TSMAPI_FOUR or addonLoaded[optAddons[i]] then
+		break -- Stop checking, we only needed one enabled or TSM 4
 	elseif i == #optAddons then
 		table.insert( NS.playerLoginMsg, string.format( L["%sAt least one of the following addons must be enabled to provide an Item Value Source: %s|r"], RED_FONT_COLOR_CODE, table.concat( optAddons, ", " ) ) );
 	end
@@ -100,7 +103,6 @@ end
 NS.DefaultSavedVariables = function()
 	return {
 		["version"] = NS.version,
-		["wowClientBuild"] = NS.wowClientBuild,
 		["flyoutPanelOpen"] = true,
 		["hideOverpricedStacks"] = true,
 		["hideOverstockStacks"] = false,
@@ -115,7 +117,7 @@ NS.DefaultSavedVariables = function()
 			[1] = {
 				["name"] = L["Restock Shopping List"],
 				["items"] = {},
-				["itemValueSrc"] = ( addonLoaded["TradeSkillMaster_AuctionDB"] and "DBMarket" ) or ( addonLoaded["Auc-Advanced"] and "AucMarket" ) or ( addonLoaded["Auctionator"] and "AtrValue" ) or "DBMarket",
+				["itemValueSrc"] = ( TSMAPI_FOUR or addonLoaded["TradeSkillMaster_AuctionDB"] and "DBMarket" ) or ( addonLoaded["Auc-Advanced"] and "AucMarket" ) or ( addonLoaded["Auctionator"] and "AtrValue" ) or "DBMarket",
 				["lowStockPct"] = 50,
 				["qohAllCharacters"] = 1,
 				["qohGuilds"] = true,
@@ -295,7 +297,7 @@ end
 NS.OnPlayerLogin = function() -- PLAYER_LOGIN
 	RestockShopEventsFrame:UnregisterEvent( "PLAYER_LOGIN" );
 	InterfaceOptions_AddCategory( RestockShopInterfaceOptionsPanel );
-	NS.tsmPriceSources = TSMAPI:GetPriceSources(); -- TSM Price Sources: Load here to avoid missing sources from modules outside of core
+	NS.tsmPriceSources = TSMAPI_FOUR and NS.TSMAPI_FOUR_GetPriceSources() or TSMAPI:GetPriceSources(); -- TSM Price Sources: Load here to avoid missing sources from modules outside of core
 	if #NS.playerLoginMsg > 0 then
 		for _,msg in ipairs( NS.playerLoginMsg ) do
 			NS.Print( msg );
@@ -1598,19 +1600,25 @@ end
 --
 NS.QOH = function( itemLinkGeneric )
 	local qoh = 0;
-	local currentPlayerTotal, otherPlayersTotal, allPlayersAuctionsTotal, otherPlayersAuctionsTotal = TSMAPI.Inventory:GetPlayerTotals( itemLinkGeneric ); -- numPlayer, numAlts, numAuctions, numAltAuctions
+	local currentPlayerTotal, otherPlayersTotal, allPlayersAuctionsTotal, otherPlayersAuctionsTotal = ( function()
+			if TSMAPI_FOUR then
+				return TSMAPI_FOUR.Inventory.GetPlayerTotals( itemLinkGeneric );
+			else
+				return TSMAPI.Inventory:GetPlayerTotals( itemLinkGeneric );
+			end
+	end )(); -- numPlayer, numAlts, numAuctions, numAltAuctions
 	if NS.db["shoppingLists"][NS.currentListKey]["qohAllCharacters"] == 1 then
 		-- All Characters
 		qoh = qoh + currentPlayerTotal + otherPlayersTotal + allPlayersAuctionsTotal;
 		if NS.db["shoppingLists"][NS.currentListKey]["qohGuilds"] then
-			local guildTotal = TSMAPI.Inventory:GetGuildTotal( itemLinkGeneric ); -- Guild Bank(s)
+			local guildTotal = TSMAPI_FOUR and TSMAPI_FOUR.Inventory.GetGuildTotal( itemLinkGeneric ) or TSMAPI.Inventory:GetGuildTotal( itemLinkGeneric ); -- Guild Bank(s)
 			qoh = qoh + guildTotal;
 		end
 	elseif NS.db["shoppingLists"][NS.currentListKey]["qohAllCharacters"] == 2 then
 		-- Current Character
 		qoh = qoh + currentPlayerTotal + ( allPlayersAuctionsTotal - otherPlayersAuctionsTotal );
 		if NS.db["shoppingLists"][NS.currentListKey]["qohGuilds"] then
-			local guildBank = TSMAPI.Inventory:GetGuildQuantity( itemLinkGeneric ); -- Guild Bank
+			local guildBank = TSMAPI_FOUR and TSMAPI_FOUR.Inventory.GetGuildQuantity( itemLinkGeneric ) or TSMAPI.Inventory:GetGuildQuantity( itemLinkGeneric ); -- Guild Bank
 			qoh = qoh + guildBank;
 		end
 	end
@@ -1638,7 +1646,7 @@ end
 --
 NS.GetItemValue = function( itemLink )
 	local source = NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"];
-	return ( NS.tsmPriceSources[source] and TSMAPI:GetItemValue( itemLink, source ) ) or TSMAPI:GetCustomPriceValue( source, itemLink ) or 0;
+	return ( NS.tsmPriceSources[source] and ( TSMAPI_FOUR and TSMAPI_FOUR.CustomPrice.GetItemPrice( itemLink, source ) or TSMAPI:GetItemValue( itemLink, source ) ) ) or ( TSMAPI_FOUR and TSMAPI_FOUR.CustomPrice.GetValue( source, itemLink ) or TSMAPI:GetCustomPriceValue( source, itemLink ) ) or 0;
 end
 --
 NS.RestockColor = function( colorType, restockPct, maxPricePct )
@@ -1741,6 +1749,16 @@ NS.MaxRestockListInfo = function()
 		listFullStockQty = listFullStockQty + fullStockQty;
 	end
 	return listCost,listLowCount,listNormalCount,listOnHandQty,listFullStockQty;
+end
+--------------------------------------------------------------------------------------------------------------------------------------------
+-- TSMAPI_FOUR
+--------------------------------------------------------------------------------------------------------------------------------------------
+NS.TSMAPI_FOUR_GetPriceSources = function()
+	local t = {};
+	for source, moduleName, label in TSMAPI_FOUR.CustomPrice.Iterator() do
+		t[source] = label;
+	end
+	return t;
 end
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- Slash Commands
@@ -1863,7 +1881,7 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 		size = { 733, ( 20 * 14 - 5 ) },
 		setPoint = { "TOPLEFT", "$parent_OnHandSortButton", "BOTTOMLEFT", 1, -5 },
 		buttonTemplate = "AuctionFrameRestockShop_ScrollFrameButtonTemplate",
-		udpate = {
+		update = {
 			numToDisplay = 14,
 			buttonHeight = 20,
 			UpdateFunction = function( sf )
@@ -1965,7 +1983,6 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 			end
 		end,
 	} );
-
 	NS.Frame( "_SmallMoneyFrame", AuctionFrameRestockShop_DialogFrame_BuyoutFrame, {
 		template = "SmallMoneyFrameTemplate",
 		size = { 137, 16 },
@@ -1986,7 +2003,6 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 			self.tooltipAnchor = { self, "ANCHOR_RIGHT" };
 		end,
 	} );
-
 	NS.TextFrame( "_DescriptionFrame", AuctionFrameRestockShop_DialogFrame_BuyoutFrame, "", {
 		size = { 200, 30 },
 		setPoint = { "LEFT", "$parent_ItemIcon", "RIGHT", 10, 0 },
@@ -2130,7 +2146,7 @@ NS.Blizzard_AuctionUI_OnLoad = function()
 		size = { 242, ( 20 * 17 - 5 ) },
 		setPoint = { "TOPLEFT", 1, -27 },
 		buttonTemplate = "AuctionFrameRestockShop_FlyoutPanel_ScrollFrameButtonTemplate",
-		udpate = {
+		update = {
 			numToDisplay = 17,
 			buttonHeight = 20,
 			UpdateFunction = function( sf )

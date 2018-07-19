@@ -4,8 +4,7 @@
 local NS = select( 2, ... );
 NS.addon = ...;
 NS.title = GetAddOnMetadata( NS.addon, "Title" );
-NS.versionString = GetAddOnMetadata( NS.addon, "Version" );
-NS.version = tonumber( NS.versionString );
+NS.patch = GetBuildInfo();
 NS.UI = {};
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- FRAME CREATION
@@ -34,7 +33,7 @@ NS.Tooltip = function( frame, tooltip, tooltipAnchor )
 	frame.tooltipAnchor = tooltipAnchor;
 	frame:SetScript( "OnEnter", function( self )
 		GameTooltip:SetOwner( unpack( self.tooltipAnchor ) );
-		local tooltipText = type( self.tooltip ) ~= "function" and self.tooltip or self.tooltip();
+		local tooltipText = type( self.tooltip ) ~= "function" and self.tooltip or self.tooltip( self );
 		if tooltipText then -- Function may have only SetHyperlink, etc. without returning text
 			GameTooltip:SetText( tooltipText );
 		end
@@ -117,6 +116,9 @@ NS.InputBox = function( name, parent, set  )
 	end
 	if set.OnTextChanged then
 		f:SetScript( "OnTextChanged", set.OnTextChanged );
+	end
+	if set.OnLoad then
+		set.OnLoad( f );
 	end
 	return f;
 end
@@ -258,7 +260,7 @@ NS.ScrollFrame = function( name, parent, set )
 		FauxScrollFrame_OnVerticalScroll( self, offset, self.buttonHeight, self.UpdateFunction );
 	end );
 	-- Add properties for use with vertical scroll and update function ... FauxScrollFrame_Update( frame, numItems, numToDisplay, buttonHeight, button, smallWidth, bigWidth, highlightFrame, smallHighlightWidth, bigHighlightWidth, alwaysShowScrollBar );
-	for k, v in pairs( set.udpate ) do
+	for k, v in pairs( set.update ) do
 		f[k] = v;
 	end
 	-- Create buttons
@@ -417,86 +419,139 @@ NS.DropDownMenu_Initialize = function( dropdownMenu )
 end
 --
 NS.MinimapButton = function( name, texture, set )
+	-- In a revision on 09/01/2017, bits and pieces were borrowed from LibDBIcon-1.0 by funkydude
+	-- in an effort to increase compatibility with non-standard Minimap shapes.
 	local f = CreateFrame( "Button", name, Minimap );
-	f:SetFrameStrata( "MEDIUM" );
-	f.dbpc = set.dbpc; -- Saved position variable per character
-	local h,i,o,bg;
-	local fSize,hSize,iSize,oSize,bgSize;
-	local iOffsetX,iOffsetY,bgOffsetX,bgOffsetY;
-	local arc,radius;
+	f.db = set.db; -- Saved position variable
+	f.docked = true;
+	f.locked = false;
+	local i,b,bg,radius,diagRadius;
+	local minimapShapes = {
+		["ROUND"] = { true, true, true, true },
+		["SQUARE"] = { false, false, false, false },
+		["CORNER-TOPLEFT"] = { false, false, false, true },
+		["CORNER-TOPRIGHT"] = { false, false, true, false },
+		["CORNER-BOTTOMLEFT"] = { false, true, false, false },
+		["CORNER-BOTTOMRIGHT"] = { true, false, false, false },
+		["SIDE-LEFT"] = { false, true, false, true },
+		["SIDE-RIGHT"] = { true, false, true, false },
+		["SIDE-TOP"] = { false, false, true, true },
+		["SIDE-BOTTOM"] = { true, true, false, false },
+		["TRICORNER-TOPLEFT"] = { false, true, true, true },
+		["TRICORNER-TOPRIGHT"] = { true, false, true, true },
+		["TRICORNER-BOTTOMLEFT"] = { true, true, false, true },
+		["TRICORNER-BOTTOMRIGHT"] = { true, true, true, false },
+	};
 	-- Position and Dragging
 	f:EnableMouse( true );
 	f:SetMovable( true );
-	f:RegisterForClicks( "LeftButtonUp", "RightButtonUp" );
+	f:RegisterForClicks( "LeftButtonUp", "RightButtonUp", "MiddleButtonUp" );
 	f:RegisterForDrag( "LeftButton", "RightButton" );
 	local BeingDragged = function()
-		local xpos,ypos = GetCursorPosition();
-		local xmin,ymin = Minimap:GetLeft(), Minimap:GetBottom();
-		xpos = xmin - xpos / UIParent:GetScale() + 70;
-		ypos = ypos / UIParent:GetScale() - ymin - 70;
-		local pos = math.deg( math.atan2( ypos, xpos ) );
-		if pos < 0 then pos = pos + 360; end
-		NS.dbpc[f.dbpc] = pos;
-		f:UpdatePos();
+		-- Locked
+		if f.locked then
+			return;
+		end
+		-- Undocked
+		if not f.docked then
+			f:StartMoving();
+		-- Docked
+		else
+			local mx, my = Minimap:GetCenter();
+			local cx, cy = GetCursorPosition();
+			local scale = Minimap:GetEffectiveScale();
+			cx, cy = ( cx / scale ), ( cy / scale );
+			local pos = math.deg( math.atan2( cy - my, cx - mx ) ) % 360;
+			NS.db[f.db] = pos;
+			f:UpdatePos();
+		end
 	end
 	f:SetScript( "OnDragStart", function()
 		f:SetScript( "OnUpdate", BeingDragged );
 	end );
 	f:SetScript( "OnDragStop", function()
 		f:SetScript( "OnUpdate", nil );
+		-- Undocked
+		if not f.docked then
+			f:StopMovingOrSizing();
+			local point, relativeTo, relativePoint, xOffset, yOffset = f:GetPoint( 1 );
+			NS.db[f.db] = ( point and point == relativePoint and xOffset and yOffset ) and { point, xOffset, yOffset } or { "CENTER", 0, 150 };
+		end
 	end );
 	function f:UpdatePos()
 		f:ClearAllPoints();
-		f:SetPoint( "TOPLEFT", "Minimap", "TOPLEFT", arc - ( radius * cos( NS.dbpc[f.dbpc] ) ), ( radius * sin( NS.dbpc[f.dbpc] ) ) - arc );
+		-- Undocked
+		if not f.docked then
+			f:SetParent( UIParent );
+			f:SetPoint( unpack( NS.db[f.db] ) );
+		-- Docked
+		else
+			local angle = math.rad( NS.db[f.db] );
+			local x, y, q = math.cos( angle ), math.sin( angle ), 1;
+			q = x < 0 and q + 1 or q;
+			q = y > 0 and q + 2 or q;
+			local minimapShape = GetMinimapShape and GetMinimapShape() or "ROUND";
+			local quadTable = minimapShapes[minimapShape];
+			if quadTable[q] then
+				x, y = ( x * radius ), ( y * radius );
+			else
+				x = math.max( 0 - radius, math.min( x * diagRadius, radius ) );
+				y = math.max( 0 - radius, math.min( y * diagRadius, radius ) );
+			end
+			f:SetParent( Minimap );
+			f:SetPoint( "CENTER", Minimap, "CENTER", x, y );
+		end
+		f:SetFrameStrata( "MEDIUM" );
+		f:SetFrameLevel( 8 );
 	end
 	function f:UpdateSize( large )
-		h:ClearAllPoints();
+		local iSize,iOffsetX,iOffsetY;
 		if large then
 			-- Large
-			fSize,hSize,iSize,oSize,bgSize = 54,50,30,76,32;
-			iOffsetX,iOffsetY,bgOffsetX,bgOffsetY = 7.5,-6.5,6,-6;
 			if set.square then
 				iSize = 22;
 				iOffsetX,iOffsetY = 11.5,-10.5;
 			end
-			arc,radius = 48,87.5;
-			h:SetPoint( "TOPLEFT", -3, 3 );
+			radius = 61.5;
+			diagRadius = 76.9741340859;
+			f:SetScale( 1.4 );
 		else
 			-- Normal
-			fSize,hSize,iSize,oSize,bgSize = 32,32,21,54,22;
-			iOffsetX,iOffsetY,bgOffsetX,bgOffsetY = 5.7,-5,5,-5;
 			if set.square then
 				iSize = 16;
 				iOffsetX,iOffsetY = 8,-7;
 			end
-			arc,radius = 54,80.5;
-			h:SetAllPoints();
+			radius = 80;
+			diagRadius = 103.13708498985;
+			f:SetScale( 1 );
 		end
-		f:SetSize( fSize, fSize );
-		h:SetSize( hSize, hSize );
-		i:SetSize( iSize, iSize );
-		i:SetPoint( "TOPLEFT", iOffsetX, iOffsetY );
-		o:SetSize( oSize, oSize );
-		bg:SetSize( bgSize, bgSize );
-		bg:SetPoint( "TOPLEFT", bgOffsetX, bgOffsetY );
+		if set.square then
+			i:SetSize( iSize, iSize );
+			i:SetPoint( "TOPLEFT", iOffsetX, iOffsetY );
+		end
 	end
 	-- Highlight
-	f:SetHighlightTexture( "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight" );
-	h = f:GetHighlightTexture();
+	f:SetHighlightTexture( "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight", "ADD" );
 	-- Icon
 	i = f:CreateTexture( nil, "ARTWORK" );
+	i:SetSize( 21, 21 ); -- Non-standard size
+	i:SetPoint( "TOPLEFT", 5.7, -5 ); -- Non-standard offsets
 	i:SetTexture( texture );
 	if set.texCoord then
 		i:SetTexCoord( unpack( set.texCoord ) );
 	end
-	-- Overlay
-	o = f:CreateTexture( nil, "OVERLAY" );
-	o:SetPoint( "TOPLEFT" );
-	o:SetTexture( "Interface\\Minimap\\MiniMap-TrackingBorder" );
+	-- Border
+	b = f:CreateTexture( nil, "BORDER" );
+	b:SetSize( 54, 54 ); -- Standard size
+	b:SetPoint( "TOPLEFT" );
+	b:SetTexture( "Interface\\Minimap\\MiniMap-TrackingBorder" );
 	-- Background
 	bg = f:CreateTexture( nil, "BACKGROUND" );
+	bg:SetSize( 25, 25 ); -- Standard size
+	bg:SetPoint( "TOPLEFT", 2, -4 ); -- Standard offsets
 	bg:SetTexture( "Interface\\Minimap\\UI-Minimap-Background" );
 	-- Size
+	f:SetSize( 32, 32 ); -- Standard size
 	f:UpdateSize();
 	-- Tooltip
 	if set.tooltip then
@@ -509,6 +564,8 @@ NS.MinimapButton = function( name, texture, set )
 			set.OnLeftClick( self, ... );
 		elseif btn == "RightButton" and set.OnRightClick then
 			set.OnRightClick( self, ... );
+		elseif btn == "MiddleButton" and set.OnMiddleClick then
+			set.OnMiddleClick( self, ... );
 		end
 	end );
 	if set.OnLoad then
@@ -519,10 +576,11 @@ end
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- GENERAL
 --------------------------------------------------------------------------------------------------------------------------------------------
-NS.Explode = function( sep, str )
+NS.Explode = function( sep, str, limit )
 	local t = {};
 	for v in string.gmatch( str, "[^%" .. sep .. "]+" ) do
 		table.insert( t, v );
+		if limit and #t == limit then break end
 	end
 	return t;
 end
@@ -545,6 +603,11 @@ end
 --
 NS.Print = function( msg )
 	print( ORANGE_FONT_COLOR_CODE .. "<|r" .. NORMAL_FONT_COLOR_CODE .. NS.addon .. "|r" .. ORANGE_FONT_COLOR_CODE .. ">|r " .. msg );
+end
+--
+NS.Debug = function( msg )
+	if not NS.debug then return end
+	NS.Print( "DEBUG: " .. msg );
 end
 --
 NS.SecondsToStrTime = function( seconds, colorCode )
@@ -586,6 +649,7 @@ NS.StrTimeToSeconds = function( str )
 end
 --
 NS.FormatNum = function( num )
+	local k;
 	while true do
 		num, k = string.gsub( num, "^(-?%d+)(%d%d%d)", "%1,%2" );
 		if ( k == 0 ) then break end
@@ -596,6 +660,7 @@ end
 NS.MoneyToString = function( money, colorCode )
 	local negative = money < 0;
 	money = math.abs( money );
+	colorCode = colorCode or HIGHLIGHT_FONT_COLOR_CODE;
 	--
 	local gold = money >= COPPER_PER_GOLD and NS.FormatNum( math.floor( money / COPPER_PER_GOLD ) ) or nil;
 	local silver = math.floor( ( money % COPPER_PER_GOLD ) / COPPER_PER_SILVER );
@@ -603,15 +668,18 @@ NS.MoneyToString = function( money, colorCode )
 	--
 	gold = ( gold and colorCode ) and ( colorCode .. gold .. FONT_COLOR_CODE_CLOSE ) or gold;
 	silver = ( silver > 0 and colorCode ) and ( colorCode .. silver .. FONT_COLOR_CODE_CLOSE ) or ( silver > 0 and silver ) or nil;
-	copper = colorCode .. copper .. FONT_COLOR_CODE_CLOSE;
+	copper = ( copper > 0 and colorCode ) and ( colorCode .. copper .. FONT_COLOR_CODE_CLOSE ) or ( copper > 0 and copper ) or nil;
 	--
 	local g,s,c = "|cffffd70ag|r","|cffc7c7cfs|r","|cffeda55fc|r";
-	local moneyText = copper .. c;
+	local moneyText = "";
+	if copper then
+		moneyText = copper .. c;
+	end
 	if silver then
-		moneyText = silver .. s .. " " .. moneyText;
+		moneyText = copper and ( silver .. s .. " " .. moneyText ) or ( silver .. s );
 	end
 	if gold then
-		moneyText = gold .. g .. " " .. moneyText;
+		moneyText = ( copper or silver ) and ( gold .. g .. " " .. moneyText ) or ( gold .. g );
 	end
 	if negative then
 		moneyText = colorCode and ( colorCode "-|r" .. moneyText ) or ( "-" .. moneyText );
@@ -649,6 +717,19 @@ NS.FindKeyByValue = function( t, v )
 	return nil;
 end
 --
+NS.RemoveKeysByFunction = function( t, func )
+	local k, r = 1, 0;
+	while k <= #t do
+		if func( t[k] ) then
+			table.remove( t, k );
+			r = r + 1;
+		else
+			k = k + 1;
+		end
+	end
+	return r;
+end
+--
 NS.Sort = function( t, k, order )
 	table.sort ( t,
 		function ( e1, e2 )
@@ -683,11 +764,137 @@ end
 --
 NS.GetWeeklyQuestResetTime = function()
 	local TUE,WED,THU = 2, 3, 4;
-	local resetWeekdays = { ["US"] = TUE, ["EU"] = WED, ["CN"] = THU, ["KR"] = THU, ["TW"] = THU };
+	local resetWeekdays = { ["BETA"] = TUE, ["US"] = TUE, ["EU"] = WED, ["CN"] = THU, ["KR"] = THU, ["TW"] = THU };
 	local resetWeekday = resetWeekdays[GetCVar( "portal" ):upper()];
 	local resetTime = time() + GetQuestResetTime();
 	while tonumber( date( "%w", resetTime ) ) ~= resetWeekday do
 		resetTime = resetTime + 86400;
 	end
 	return resetTime;
+end
+--
+NS.BatchDataLoop = function( set )
+	--------------------------------------------------------
+	-- Set can including the following:
+	--------------------------------------------------------
+	-- data 				(required)
+	-- batchSize
+	-- attemptsMax
+	-- EndBatchFunction
+	-- AbortFunction
+	-- DataFunction 		(required)
+	-- CompleteFunction 	(required)
+	--------------------------------------------------------
+	local dataNum,batchNum,batchSize,batchRetry,AdvanceBatch,NextData;
+	--
+	AdvanceBatch = function()
+		if batchNum == batchSize or dataNum == #set.data then
+			-- Batch Complete
+			if set.EndBatchFunction then
+				set.EndBatchFunction( set.data, dataNum );
+			end
+			--
+			if batchRetry.count > 0 and ( not batchRetry.inProgress or ( batchRetry.inProgress and batchRetry.attempts < batchRetry.attemptsMax ) ) then
+				-- Retry Batch
+				batchRetry.inProgress = true;
+				batchRetry.attempts = batchRetry.attempts + 1;
+				dataNum = dataNum - batchNum; -- Reset dataNum to start of batch for retry
+				batchNum = 1;
+				return C_Timer.After( batchRetry.attempts * 0.01, NextData );
+			else
+				-- Fresh Batch
+				batchRetry.inProgress = false;
+				batchRetry.count = 0;
+				batchRetry.attempts = 0;
+				wipe( batchRetry.batchNum );
+				batchNum = 1;
+				return C_Timer.After( 0.001, NextData );
+			end
+		else
+			-- Increment Batch
+			batchNum = batchNum + 1;
+			return NextData();
+		end
+	end
+	--
+	NextData = function()
+		dataNum = dataNum + 1;
+		--
+		if set.AbortFunction and set.AbortFunction() then return end
+		if dataNum > #set.data then return set.CompleteFunction(); end -- Data complete
+		--
+		if not batchRetry.inProgress or ( batchRetry.inProgress and batchRetry.batchNum[batchNum] ) then -- Not currently retrying or retrying and match
+			local dataReturn = set.DataFunction( set.data, dataNum ); -- retry, complete or {anything-else}
+			if dataReturn == "retry" then
+				-- Add new retry
+				if not batchRetry.inProgress then
+					batchRetry.count = batchRetry.count + 1;
+					batchRetry.batchNum[batchNum] = true;
+				end
+			elseif dataReturn == "complete" then
+				-- Completed early, no more data required
+				return set.CompleteFunction();
+			elseif batchRetry.inProgress then
+				-- Remove successful retry
+				batchRetry.count = batchRetry.count - 1;
+				batchRetry.batchNum[batchNum] = nil;
+			end
+		end
+		return AdvanceBatch();
+	end
+	--
+	dataNum = 0;
+	batchNum = 1;
+	batchSize = set.batchSize or 50;
+	batchRetry = { inProgress = false, count = 0, attempts = 0, attemptsMax = set.attemptsMax or 50, batchNum = {} };
+	NextData();
+end
+--
+NS.GetAtlasInlineTexture = function( name, size1, size2 )
+	local filename, width, height, left, right, top, bottom, tilesHoriz, tilesVert = GetAtlasInfo( name );
+	size1, size2 = ( size1 or 0 ), ( size2 or 0 );
+	local width = width / ( right - left ); -- Width of actual texture (e.g. width = 64, texture = 256)
+	local height = height / ( bottom - top ); -- Height ^
+	local left = width * left;
+	local right = width * right;
+	local top = height * top;
+	local bottom = height * bottom;
+	-- https://wow.gamepedia.com/UI_escape_sequences#Textures
+	-- |TTexturePath:size1:size2:xoffset:yoffset:dimx:dimy:coordx1:coordx2:coordy1:coordy2:red:green:blue|t
+	return string.format( "|T%s:%d:%d:0:0:%d:%d:%d:%d:%d:%d|t", filename, size1, size2, width, height, left, right, top, bottom );
+end
+--
+NS.AddLinesToTooltip = function( lines, double, tooltip )
+	-- https://wow.gamepedia.com/API_GameTooltip_AddLine
+	-- https://wow.gamepedia.com/API_GameTooltip_AddDoubleLine
+	-- GameTooltip:AddLine(tooltipText [, r, g, b [, wrapText]])
+	-- GameTooltip:AddDoubleLine(leftText, rightText[, leftR, leftG, leftB[, rightR, rightG, rightB]])
+	--
+	-- fontObject disabled for now, screws up GameTooltip, but works fine if used on custom tooltip.
+	--
+	tooltip = tooltip or GameTooltip;
+	local tooltipName = tooltip:GetName();
+	if type( lines ) == "table" then
+		for i = 1, #lines do
+			if type( lines[i] ) == "table" then
+				--local fontObject;
+				if double then
+					tooltip:AddDoubleLine( lines[i][1], lines[i][2], ( lines[i][3] or nil ), ( lines[i][4] or nil ), ( lines[i][5] or nil ), ( lines[i][6] or nil ), ( lines[i][7] or nil ), ( lines[i][8] or nil ) );
+					--fontObject = #lines[i] > 2 and type( lines[i][#lines[i]] ) == "string" and lines[i][#lines[i]] or nil;
+				else
+					tooltip:AddLine( lines[i][1], ( lines[i][2] or nil ), ( lines[i][3] or nil ), ( lines[i][4] or nil ), ( lines[i][5] or nil ) );
+					--fontObject = #lines[i] > 1 and type( lines[i][#lines[i]] ) == "string" and lines[i][#lines[i]] or nil;
+				end
+				-- if fontObject then
+				-- 	local lineNum = tooltip:NumLines();
+				-- 	_G[tooltipName .. "TextLeft" .. lineNum]:SetFontObject( fontObject );
+				-- 	_G[tooltipName .. "TextRight" .. lineNum]:SetFontObject( fontObject );
+				-- end
+			else
+				tooltip:AddLine( lines[i] );
+			end
+		end
+	elseif lines then
+		tooltip:AddLine( lines );
+	end
 end
