@@ -358,7 +358,7 @@ NS.options.cfg = {
 						local source = strtrim( self:GetText() );
 						if source ~= "" and string.match( source, "%a" ) and source ~= NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] then
 							-- Validate
-							if not NS.tsmPriceSources[source] and not TSMAPI:ValidateCustomPrice( source ) then
+							if not NS.tsmPriceSources[source] and not ( TSMAPI_FOUR and TSMAPI_FOUR.CustomPrice.Validate( source ) or TSMAPI:ValidateCustomPrice( source ) ) then
 								NS.Print( RED_FONT_COLOR_CODE .. string.format( L["Not a valid price source or custom price source."], source ) .. FONT_COLOR_CODE_CLOSE );
 							end
 							-- Update
@@ -572,7 +572,7 @@ NS.options.cfg = {
 					size = { 785, ( 20 * 14 - 5 ) },
 					setPoint = { "TOPLEFT", "$parentItemIdColumnHeaderButton", "BOTTOMLEFT", 1, -3 },
 					buttonTemplate = "RestockShop_Options_ShoppingListsTab_ScrollFrameButtonTemplate",
-					udpate = {
+					update = {
 						numToDisplay = 14,
 						buttonHeight = 20,
 						alwaysShowScrollBar = true,
@@ -1074,7 +1074,7 @@ NS.options.cfg = {
 			mainFrameTitle	= NS.title,
 			tabText			= "Help",
 			Init			= function( SubFrame )
-				NS.TextFrame( "Description", SubFrame, string.format( L["%s version %s"], NS.title, NS.versionString ), {
+				NS.TextFrame( "Description", SubFrame, string.format( L["%s version %s for patch %s"], NS.title, NS.versionString, NS.releasePatch ), {
 					setPoint = {
 						{ "TOPLEFT", "$parent", "TOPLEFT", 8, -8 },
 						{ "RIGHT", -8 },
@@ -1110,9 +1110,8 @@ NS.options.cfg = {
 					fontObject = "GameFontNormalLarge",
 				} );
 				NS.TextFrame( "NeedMoreHelp", SubFrame, string.format(
-						L["%sQuestions, comments, and suggestions can be made on Curse. Please submit bug reports on CurseForge.|r\n\n" ..
-						"http://www.curse.com/addons/wow/restockshop\n" ..
-						"http://wow.curseforge.com/addons/restockshop/tickets/"],
+						L["%sQuestions, Comments, Bugs, and Suggestions|r\n\n" ..
+						"https://www.curseforge.com/wow/addons/restockshop"],
 						NORMAL_FONT_COLOR_CODE
 					), {
 					setPoint = {
