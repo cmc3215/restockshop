@@ -627,7 +627,7 @@ NS.SecondsToStrTime = function( seconds, colorCode )
     local remainingSeconds = minuteSeconds % secondsInAMinute;
     local seconds = math.ceil( remainingSeconds );
 	--
-	local strTime = ( days > 0 and hours == 0 and days .. " day" ) or ( days > 0 and days .. " day " .. hours .. " hr" ) or ( hours > 0 and minutes == 0 and hours .. " hr" ) or ( hours > 0 and hours .. " hr " .. minutes .. " min" ) or ( minutes > 0 and minutes .. " min" ) or seconds .. " sec";
+	local strTime = ( days > 0 and hours == 0 and days .. " Day" ) or ( days > 0 and days .. " Day " .. hours .. " Hr" ) or ( hours > 0 and minutes == 0 and hours .. " Hr" ) or ( hours > 0 and hours .. " Hr " .. minutes .. " Min" ) or ( minutes > 0 and minutes .. " Min" ) or seconds .. " sec";
 	return colorCode and ( colorCode .. strTime .. "|r" ) or strTime;
 end
 --
@@ -635,6 +635,7 @@ NS.StrTimeToSeconds = function( str )
 	if not str then return 0; end
 	local t1, i1, t2, i2 = strsplit( " ", str ); -- x day   -   x day x hr   -   x hr y min   -   x hr   -   x min   -   x sec
 	local M = function( i )
+		i = string.lower( i );
 		if i == "hr" then
 			return 3600;
 		elseif i == "min" then
@@ -710,6 +711,16 @@ end
 NS.FindKeyByValue = function( t, v )
 	if not v then return nil end
 	for k = 1, #t do
+		if t[k] == v then
+			return k;
+		end
+	end
+	return nil;
+end
+--
+NS.PairsFindKeyByValue = function( t, v )
+	if not v then return nil end
+	for k,_ in pairs( t ) do
 		if t[k] == v then
 			return k;
 		end
@@ -869,27 +880,16 @@ NS.AddLinesToTooltip = function( lines, double, tooltip )
 	-- https://wow.gamepedia.com/API_GameTooltip_AddDoubleLine
 	-- GameTooltip:AddLine(tooltipText [, r, g, b [, wrapText]])
 	-- GameTooltip:AddDoubleLine(leftText, rightText[, leftR, leftG, leftB[, rightR, rightG, rightB]])
-	--
-	-- fontObject disabled for now, screws up GameTooltip, but works fine if used on custom tooltip.
-	--
 	tooltip = tooltip or GameTooltip;
 	local tooltipName = tooltip:GetName();
 	if type( lines ) == "table" then
 		for i = 1, #lines do
 			if type( lines[i] ) == "table" then
-				--local fontObject;
 				if double then
 					tooltip:AddDoubleLine( lines[i][1], lines[i][2], ( lines[i][3] or nil ), ( lines[i][4] or nil ), ( lines[i][5] or nil ), ( lines[i][6] or nil ), ( lines[i][7] or nil ), ( lines[i][8] or nil ) );
-					--fontObject = #lines[i] > 2 and type( lines[i][#lines[i]] ) == "string" and lines[i][#lines[i]] or nil;
 				else
 					tooltip:AddLine( lines[i][1], ( lines[i][2] or nil ), ( lines[i][3] or nil ), ( lines[i][4] or nil ), ( lines[i][5] or nil ) );
-					--fontObject = #lines[i] > 1 and type( lines[i][#lines[i]] ) == "string" and lines[i][#lines[i]] or nil;
 				end
-				-- if fontObject then
-				-- 	local lineNum = tooltip:NumLines();
-				-- 	_G[tooltipName .. "TextLeft" .. lineNum]:SetFontObject( fontObject );
-				-- 	_G[tooltipName .. "TextRight" .. lineNum]:SetFontObject( fontObject );
-				-- end
 			else
 				tooltip:AddLine( lines[i] );
 			end

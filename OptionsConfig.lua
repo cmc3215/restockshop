@@ -356,17 +356,26 @@ NS.options.cfg = {
 					OnEditFocusLost = function( self )
 						self:HighlightText( 0, 0 );
 						local source = strtrim( self:GetText() );
-						if source ~= "" and string.match( source, "%a" ) and source ~= NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] then
-							-- Validate
-							if not NS.tsmPriceSources[source] and not ( TSMAPI_FOUR and TSMAPI_FOUR.CustomPrice.Validate( source ) or TSMAPI:ValidateCustomPrice( source ) ) then
-								NS.Print( RED_FONT_COLOR_CODE .. string.format( L["Not a valid price source or custom price source."], source ) .. FONT_COLOR_CODE_CLOSE );
+						if source ~= NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] then
+							-- Validate Source
+							if ( TSMAPI_FOUR or TSMAPI ) and source ~= "" then
+								NS.tsmPriceSources = ( TSMAPI_FOUR and NS.TSMAPI_FOUR_GetPriceSources() or TSMAPI:GetPriceSources() ); -- TSM Price Sources
+								if not NS.tsmPriceSources[source] then
+									if not ( TSMAPI_FOUR and TSMAPI_FOUR.CustomPrice.Validate( source ) or ( not TSMAPI_FOUR and TSMAPI:ValidateCustomPrice( source ) ) ) then
+										NS.Print( RED_FONT_COLOR_CODE .. L["Not a valid price source or custom price source."] .. FONT_COLOR_CODE_CLOSE );
+									end
+								end
 							end
-							-- Update
-							NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] = source;
-							_G[SubFrame:GetName() .. "ScrollFrame"]:Update();
-						else
-							-- Ignore and reset
-							self:SetText( NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] );
+							--
+							if source ~= "" then
+								-- Update
+								NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] = source;
+								_G[SubFrame:GetName() .. "ScrollFrame"]:Update();
+							else
+								-- Empty Warning / Ignore and Reset
+								NS.Print( RED_FONT_COLOR_CODE .. L["Item value source cannot be empty--resetting to previous source."] .. FONT_COLOR_CODE_CLOSE );
+								self:SetText( NS.db["shoppingLists"][NS.currentListKey]["itemValueSrc"] );
+							end
 						end
 					end,
 				} );
