@@ -4,7 +4,7 @@
 local NS = select( 2, ... );
 local L = NS.localization;
 NS.releasePatch = "8.0.1";
-NS.versionString = "5.2";
+NS.versionString = "5.3";
 NS.version = tonumber( NS.versionString );
 --
 NS.options = {};
@@ -117,7 +117,7 @@ NS.DefaultSavedVariables = function()
 			[1] = {
 				["name"] = L["Restock Shopping List"],
 				["items"] = {},
-				["itemValueSrc"] = ( TSMAPI_FOUR or addonLoaded["TradeSkillMaster_AuctionDB"] and "DBMarket" ) or ( addonLoaded["Auc-Advanced"] and "AucMarket" ) or ( addonLoaded["Auctionator"] and "AtrValue" ) or "DBMarket",
+				["itemValueSrc"] = ( ( TSMAPI_FOUR or addonLoaded["TradeSkillMaster_AuctionDB"] ) and "DBMarket" ) or ( addonLoaded["Auc-Advanced"] and "AucMarket" ) or ( addonLoaded["Auctionator"] and "AtrValue" ) or "DBMarket",
 				["lowStockPct"] = 50,
 				["qohAllCharacters"] = 1,
 				["qohGuilds"] = true,
@@ -230,6 +230,14 @@ NS.Upgrade = function()
 	if version < 4.7 then
 		NS.db["hideUnevenStacks"] = vars["hideUnevenStacks"];
 		NS.db["hideOneStacks"] = vars["hideOneStacks"];
+	end
+	-- 5.3
+	if version < 5.3 then
+		for i = 1, #NS.db["shoppingLists"] do
+			if type( NS.db["shoppingLists"][i]["itemValueSrc"] ) == "table" then
+				NS.db["shoppingLists"][i]["itemValueSrc"] = vars["shoppingLists"][1]["itemValueSrc"];
+			end
+		end
 	end
 	--
 	table.insert( NS.playerLoginMsg, string.format( L["Upgraded version %s to %s"], version, NS.version ) );
