@@ -1,3 +1,8 @@
+**5.3**
+
+- Release date: 08/26/2018
+- Bug fixed: Lua error about itemValueSrc being a table in some situations. Only affected new users of RestockShop.
+
 **5.2**
 
 - Release date: 08/25/2018
