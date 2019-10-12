@@ -1,4 +1,4 @@
-## Interface: 80200
+## Interface: 80205
 ## Title: RestockShop
 ## Version: 5.5
 ## Author: Clinton Caldwell (CurseForge User: cmc3215)
