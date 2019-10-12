@@ -3,8 +3,8 @@
 --------------------------------------------------------------------------------------------------------------------------------------------
 local NS = select( 2, ... );
 local L = NS.localization;
-NS.releasePatch = "8.1";
-NS.versionString = "5.4";
+NS.releasePatch = "8.2.5";
+NS.versionString = "5.5";
 NS.version = tonumber( NS.versionString );
 --
 NS.options = {};
