@@ -1,6 +1,6 @@
-## Interface: 80100
+## Interface: 80200
 ## Title: RestockShop
-## Version: 5.4
+## Version: 5.5
 ## Author: Clinton Caldwell (CurseForge User: cmc3215)
 ## Notes: A fast shopping list tool to restock items at your ideal quantity and price.
 ## SavedVariables: RESTOCKSHOP_SAVEDVARIABLES
