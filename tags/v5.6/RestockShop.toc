@@ -1,0 +1,16 @@
+## Interface: 80205
+## Title: RestockShop
+## Version: 5.6
+## Author: Clinton Caldwell (CurseForge User: cmc3215)
+## Notes: A fast shopping list tool to restock items at your ideal quantity and price.
+## SavedVariables: RESTOCKSHOP_SAVEDVARIABLES
+## SavedVariablesPerCharacter: RESTOCKSHOP_SAVEDVARIABLESPERCHARACTER
+## Dependencies: TradeSkillMaster
+## OptionalDeps: Auc-Advanced,Auctionator,TradeSkillMaster_AuctionDB
+
+Templates.xml
+Localization.lua
+Base.lua
+RestockShop.lua
+OptionsConfig.lua
+OptionsCreate.lua
