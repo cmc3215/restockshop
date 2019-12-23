@@ -1,7 +1,12 @@
+**5.6**
+
+- Release date: 12/23/2019
+- Compatibility fixes for TSM 4 API changes. Removed support for TSM 3.
+
 **5.5**
 
 - Release date: 10/12/2019
-- TOC updated for patch 8.2.X.
+- TOC updated for patch 8.2.5.
 
 **5.4**
 
